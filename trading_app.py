@@ -15,7 +15,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Tambahkan CSS ini persis di bawahnya
+# Sembunyikan header bawaan Streamlit (Tombol Fork & GitHub)
 st.markdown("""
     <style>
     header[data-testid="stHeader"] {
@@ -23,7 +23,6 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
-)
 
 # ==================== KONFIGURASI EMAIL PENGIRIM (SMTP) ====================
 try:

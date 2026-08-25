@@ -9,6 +9,16 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import plotly.express as px
 
+# ==========================================
+# 1. KONFIGURASI HALAMAN & TAMPILAN PROFESIONAL
+# ==========================================
+st.set_page_config(
+    page_title="Lensjourneyy · Professional Trading Journal & Risk MTRX",
+    page_icon="📈",
+    layout="wide"
+)
+
+# ==================== KUSTOM CSS & MOBILE OPTIMIZED ====================
 st.markdown("""
     <style>
     /* Menyembunyikan Header atas secara keseluruhan (termasuk tombol Fork & GitHub) */
@@ -25,23 +35,8 @@ st.markdown("""
     [data-testid="stToolbar"] {
         display: none !important;
     }
-    </style>
-""", unsafe_allow_html=True)
-# ==================== KONFIGURASI EMAIL PENGIRIM (SMTP) ====================
-try:
-    EMAIL_SENDER = st.secrets["email"]["sender"]
-    EMAIL_PASSWORD = st.secrets["email"]["password"]
-except Exception:
-    EMAIL_SENDER = st.secrets.get("EMAIL_SENDER", "azumimaulana36@gmail.com")
-    EMAIL_PASSWORD = st.secrets.get("EMAIL_PASSWORD", "kfud dalb ztal kolp")
 
-# ==================== PENGATURAN MODE TAMPILAN ====================
-if 'view_mode' not in st.session_state:
-    st.session_state.view_mode = "📱 Mode Khusus Ponsel (Mobile)"
-
-# ==================== CUSTOM CSS DINAMIS & MOBILE OPTIMIZED ====================
-st.markdown("""
-    <style>
+    /* Styling Tombol Umum agar konsisten & ramah sentuhan */
     .stButton>button {
         width: 100%;
         border-radius: 8px;
@@ -49,6 +44,8 @@ st.markdown("""
         padding: 0.6rem 1rem;
         min-height: 44px;
     }
+
+    /* Watermark Footer */
     .footer-watermark {
         position: fixed;
         bottom: 5px;
@@ -59,11 +56,29 @@ st.markdown("""
         font-weight: 500;
         letter-spacing: 0.5px;
     }
+
     .stDataFrame {
         overflow-x: auto;
     }
+
+    /* SOLUSI MOBILE: Memperjelas tombol toggle sidebar di HP agar mudah diklik */
+    @media (max-width: 768px) {
+        [data-testid="collapsedControl"] {
+            display: flex !important;
+            visibility: visible !important;
+            background-color: #00ADB5 !important;
+            color: white !important;
+            border-radius: 50% !important;
+            padding: 6px !important;
+            box-shadow: 0px 2px 8px rgba(0,0,0,0.4) !important;
+        }
+    }
     </style>
 """, unsafe_allow_html=True)
+
+# ==================== PENGATURAN MODE TAMPILAN ====================
+if 'view_mode' not in st.session_state:
+    st.session_state.view_mode = "📱 Mode Khusus Ponsel (Mobile)"
 
 # Jika dipilih mode ponsel, terapkan CSS yang memaksimalkan layar kecil & merapikan kolom
 if st.session_state.view_mode == "📱 Mode Khusus Ponsel (Mobile)":
@@ -92,6 +107,14 @@ if st.session_state.view_mode == "📱 Mode Khusus Ponsel (Mobile)":
         }
         </style>
     """, unsafe_allow_html=True)
+
+# ==================== KONFIGURASI EMAIL PENGIRIM (SMTP) ====================
+try:
+    EMAIL_SENDER = st.secrets["email"]["sender"]
+    EMAIL_PASSWORD = st.secrets["email"]["password"]
+except Exception:
+    EMAIL_SENDER = st.secrets.get("EMAIL_SENDER", "azumimaulana36@gmail.com")
+    EMAIL_PASSWORD = st.secrets.get("EMAIL_PASSWORD", "kfud dalb ztal kolp")
 
 # ==================== DATABASE SETUP ====================
 def init_db():

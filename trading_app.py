@@ -31,7 +31,7 @@ st.markdown("""
         border-radius: 8px;
         font-weight: bold;
         padding: 0.6rem 1rem;
-        min-height: 44px; /* Standar ukuran sentuh mobile yang nyaman */
+        min-height: 44px;
     }
     .footer-watermark {
         position: fixed;
@@ -43,7 +43,6 @@ st.markdown("""
         font-weight: 500;
         letter-spacing: 0.5px;
     }
-    /* Memperbaiki padding tabel agar bisa digeser horizontal di layar kecil */
     .stDataFrame {
         overflow-x: auto;
     }
@@ -65,7 +64,6 @@ if st.session_state.view_mode == "📱 Mode Khusus Ponsel (Mobile)":
         h3 { font-size: 1.0rem !important; }
         [data-testid="stMetricValue"] { font-size: 1.1rem !important; }
         
-        /* Memaksa elemen kolom di dalam form/input menjadi satu baris penuh ke bawah agar tidak sempit */
         [data-testid="column"] {
             width: 100% !important;
             flex: 100% !important;
@@ -73,7 +71,6 @@ if st.session_state.view_mode == "📱 Mode Khusus Ponsel (Mobile)":
             margin-bottom: 0.5rem;
         }
         
-        /* Memperbesar sedikit ukuran teks input agar mudah disentuh di HP */
         input, select, textarea {
             font-size: 16px !important;
         }
@@ -331,7 +328,7 @@ if not st.session_state.logged_in:
                     else:
                         st.error("⚠️ Kode verifikasi salah.")
 
-    st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy Support</div>', unsafe_allow_html=True)
+    st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy</div>', unsafe_allow_html=True)
 
 # ==================== APLIKASI UTAMA SETELAH LOGIN ====================
 else:
@@ -364,7 +361,7 @@ else:
         "📖 Panduan & Penjelasan Sistem"
     ])
 
-   st.sidebar.markdown("---")
+    st.sidebar.markdown("---")
     st.sidebar.markdown("<p style='text-align: center; color: #6c757d; font-size: 12px;'>⚡ Powered by <b>Lensjourneyy</b></p>", unsafe_allow_html=True)
 
     df_raw = load_trades(st.session_state.username)

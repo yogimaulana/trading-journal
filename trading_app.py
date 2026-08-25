@@ -60,19 +60,6 @@ st.markdown("""
     .stDataFrame {
         overflow-x: auto;
     }
-
-    /* SOLUSI MOBILE: Memperjelas tombol toggle sidebar di HP agar mudah diklik */
-    @media (max-width: 768px) {
-        [data-testid="collapsedControl"] {
-            display: flex !important;
-            visibility: visible !important;
-            background-color: #00ADB5 !important;
-            color: white !important;
-            border-radius: 50% !important;
-            padding: 6px !important;
-            box-shadow: 0px 2px 8px rgba(0,0,0,0.4) !important;
-        }
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -371,37 +358,44 @@ if not st.session_state.logged_in:
 
 # ==================== APLIKASI UTAMA SETELAH LOGIN ====================
 else:
-    st.sidebar.title(f"👤 Akun: {st.session_state.username}")
+    # Header Atas Pengguna & Tombol Logout / Pengaturan Ringkas
+    col_top1, col_top2 = st.columns([0.7, 0.3])
+    with col_top1:
+        st.markdown(f"👤 **Akun:** `{st.session_state.username}`")
+    with col_top2:
+        if st.button("🚪 Keluar"):
+            st.session_state.logged_in = False
+            st.session_state.username = ""
+            st.rerun()
+
+    st.markdown("---")
     
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("📱 Pengaturan Tampilan")
-    sidebar_mode = st.sidebar.radio(
-        "Pilih Mode Tampilan:",
-        ["📱 Mode Khusus Ponsel (Mobile)", "🖥️ Mode Desktop (Lebar)"],
-        index=0 if st.session_state.view_mode == "📱 Mode Khusus Ponsel (Mobile)" else 1,
-        key="sb_view_mode"
+    # 📱 NAVIGASI UTAMA BERBENTUK MENU PILIHAN DI ATAS (SANGAT NYAMAN DI HP & DESKTOP)
+    menu = st.selectbox(
+        "📌 Pilih Menu Navigasi:", 
+        [
+            "📊 Dashboard & Analitik", 
+            "🧮 Kalkulator Lot & Risiko", 
+            "➕ Input Jurnal & Screenshot", 
+            "📋 Riwayat & Kalender", 
+            "📖 Panduan & Penjelasan Sistem"
+        ],
+        label_visibility="visible"
     )
-    if sidebar_mode != st.session_state.view_mode:
-        st.session_state.view_mode = sidebar_mode
-        st.rerun()
+    
+    # Pengaturan Mode Tampilan Tambahan di Bagian Bawah atau Opsional
+    with st.expander("⚙️ Pengaturan Tampilan & Layar"):
+        sidebar_mode = st.radio(
+            "Pilih Mode Tampilan:",
+            ["📱 Mode Khusus Ponsel (Mobile)", "🖥️ Mode Desktop (Lebar)"],
+            index=0 if st.session_state.view_mode == "📱 Mode Khusus Ponsel (Mobile)" else 1,
+            key="sb_view_mode"
+        )
+        if sidebar_mode != st.session_state.view_mode:
+            st.session_state.view_mode = sidebar_mode
+            st.rerun()
 
-    if st.sidebar.button("🚪 Keluar (Logout)"):
-        st.session_state.logged_in = False
-        st.session_state.username = ""
-        st.rerun()
-        
-    st.sidebar.markdown("---")
-    st.sidebar.title("📈 Navigasi Jurnal")
-    menu = st.sidebar.radio("Pilih Menu:", [
-        "📊 Dashboard & Analitik", 
-        "🧮 Kalkulator Lot & Risiko", 
-        "➕ Input Jurnal & Screenshot", 
-        "📋 Riwayat & Kalender", 
-        "📖 Panduan & Penjelasan Sistem"
-    ])
-
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("<p style='text-align: center; color: #6c757d; font-size: 12px;'>⚡ Powered by <b>Lensjourneyy</b></p>", unsafe_allow_html=True)
+    st.markdown("---")
 
     df_raw = load_trades(st.session_state.username)
 
@@ -650,5 +644,7 @@ else:
             * **Registrasi & Login Akun:** Setiap akun diamankan dengan enkripsi *hash* SHA-256 untuk menjaga privasi data trading Anda.
             * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP 6-digit via email untuk proses reset password yang aman dan terlindungi.
             * **Validasi Password Lama:** Sistem secara otomatis mendeteksi dan menolak apabila Anda mencoba memasukkan password baru yang sama persis dengan password lama Anda.
-            * **Mode Tampilan Responsif:** Anda dapat beralih antara **Mode Desktop (Lebar)** dan **Mode Kompak (HP / Mobile)** melalui tombol pengaturan di menu login maupun sidebar utama agar aplikasi tetap nyaman diakses lewat berbagai perangkat.
+            * **Mode Tampilan Responsif:** Anda dapat beralih antara **Mode Desktop (Lebar)** dan **Mode Kompak (HP / Mobile)** melalui pengaturan agar aplikasi tetap nyaman diakses lewat berbagai perangkat.
             """)
+
+    st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy</div>', unsafe_allow_html=True)

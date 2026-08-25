@@ -9,7 +9,11 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import plotly.express as px
 
-st.set_page_config(page_title="Jurnal & Kalkulator Risiko Trading", page_icon="📈", layout="wide")
+st.set_page_config(
+    page_title="Lensjourneyy · Professional Trading Journal & Risk MTRX", 
+    page_icon="📈", 
+    layout="wide"
+)
 
 # ==================== KONFIGURASI EMAIL PENGIRIM (SMTP) ====================
 try:

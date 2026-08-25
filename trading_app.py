@@ -9,21 +9,24 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import plotly.express as px
 
-st.set_page_config(
-    page_title="Lensjourneyy · Professional Trading Journal & Risk MTRX",
-    page_icon="📈",
-    layout="wide"
-)
-
-# Sembunyikan header bawaan Streamlit (Tombol Fork & GitHub)
 st.markdown("""
     <style>
+    /* Menyembunyikan Header atas secara keseluruhan (termasuk tombol Fork & GitHub) */
     header[data-testid="stHeader"] {
+        display: none !important;
+    }
+    
+    /* Menyembunyikan tombol deploy / menu toolbar melayang di pojok kanan bawah/atas */
+    .stDeployButton, footer {
+        visibility: hidden !important;
+    }
+    
+    /* Menyembunyikan elemen toolbar tambahan Streamlit Cloud */
+    [data-testid="stToolbar"] {
         display: none !important;
     }
     </style>
 """, unsafe_allow_html=True)
-
 # ==================== KONFIGURASI EMAIL PENGIRIM (SMTP) ====================
 try:
     EMAIL_SENDER = st.secrets["email"]["sender"]

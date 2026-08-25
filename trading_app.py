@@ -12,8 +12,9 @@ import plotly.express as px
 st.set_page_config(page_title="Jurnal & Kalkulator Risiko Trading", page_icon="📈", layout="wide")
 
 # ==================== KONFIGURASI EMAIL PENGIRIM (SMTP) ====================
-EMAIL_SENDER = "email_anda@gmail.com"
-EMAIL_PASSWORD = "app_password_gmail_anda"
+# Diperbaiki agar dapat membaca st.secrets secara otomatis (atau fallback ke email Anda)
+EMAIL_SENDER = st.secrets.get("EMAIL_SENDER", "email_anda@gmail.com")
+EMAIL_PASSWORD = st.secrets.get("EMAIL_PASSWORD", "app_password_gmail_anda")
 
 # ==================== PENGATURAN MODE TAMPILAN (DESKTOP / MOBILE) ====================
 if 'view_mode' not in st.session_state:

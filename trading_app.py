@@ -1,834 +1,379 @@
-from email.header import Header
-from email.utils import formataddr
+import streamlit as st
+import sqlite3
 import hashlib
 import random
 import smtplib
-from datetime import datetime, timedelta
+import pandas as pd
+from datetime import datetime, date
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import sqlite3
-import pandas as pd
+from email.header import Header
+from email.utils import formataddr
 import plotly.express as px
-import streamlit as st
 
+# 1. Konfigurasi Halaman (Harus di baris pertama perintah Streamlit)
 st.set_page_config(
-    page_config_title="Jurnal & Kalkulator Risiko Trading",
+    page_title="Jurnal & Kalkulator Risiko Trading",
     page_icon="📈",
-    layout="wide",
+    layout="wide"
 )
 
-# ==================== KONFIGURASI EMAIL PENGIRIM (SMTP) ====================
-# Mengambil data dari st.secrets atau menggunakan fallback default
+# 2. Konfigurasi Email & Secrets (Fallback aman jika secrets.toml belum diatur)
 EMAIL_SENDER = st.secrets.get("EMAIL_SENDER", "azumimaulana36@gmail.com")
 EMAIL_PASSWORD = st.secrets.get("EMAIL_PASSWORD", "app_password_gmail_anda")
 
-# ==================== PENGATURAN MODE TAMPILAN (DESKTOP / MOBILE) ====================
-if "view_mode" not in st.session_state:
-  st.session_state.view_mode = "🖥️ Mode Desktop (Lebar)"
-
-# ==================== CUSTOM CSS DINAMIS ====================
-st.markdown(
-    """
-    <style>
-    .stButton>button {
-        width: 100%;
-        border-radius: 8px;
-        font-weight: bold;
-        padding: 0.5rem 1rem;
-    }
-    .footer-watermark {
-        position: fixed;
-        bottom: 5px;
-        left: 10px;
-        font-size: 11px;
-        color: #6c757d;
-        z-index: 999;
-        font-weight: 500;
-        letter-spacing: 0.5px;
-    }
-    </style>
-""",
-    unsafe_allow_html=True,
-)
-
-if st.session_state.view_mode == "📱 Mode Kompak (HP / Mobile)":
-  st.markdown(
-      """
-        <style>
-        .block-container {
-            padding-top: 1rem !important;
-            padding-left: 0.8rem !important;
-            padding-right: 0.8rem !important;
-        }
-        h1 { font-size: 1.3rem !important; }
-        h2 { font-size: 1.1rem !important; }
-        h3 { font-size: 1.0rem !important; }
-        [data-testid="stMetricValue"] { font-size: 1.1rem !important; }
-        [data-testid="column"] {
-            width: 100% !important;
-            flex: 100% !important;
-            min-width: 100% !important;
-        }
-        </style>
-    """,
-      unsafe_allow_html=True,
-  )
-
-
-# ==================== DATABASE SETUP ====================
+# ================= DATABASE SETUP =================
 def init_db():
-  conn = sqlite3.connect("trading_journal.db")
-  c = conn.cursor()
-  c.execute(
-      """
+    conn = sqlite3.connect("trading_journal.db", check_same_thread=False)
+    cursor = conn.cursor()
+    
+    # Tabel User
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE,
             email TEXT UNIQUE,
-            password TEXT,
-            reset_code TEXT,
-            code_expiry TEXT
+            password TEXT
         )
-    """
-  )
-  c.execute(
-      """
+    """)
+    
+    # Tabel Histori Password Lama (untuk mencegah password reuse)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS password_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT,
+            password_hash TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Tabel Trade / Jurnal
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS trades (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT,
-            tanggal TEXT,
+            date TEXT,
             pair TEXT,
-            tipe TEXT,
+            type TEXT,
             lot REAL,
             entry REAL,
             sl REAL,
-            exit REAL,
-            pl REAL,
-            strategi TEXT,
-            emosi TEXT,
-            screenshot_name TEXT,
-            screenshot_data BLOB
+            tp REAL,
+            pnl REAL,
+            status TEXT,
+            strategy TEXT,
+            notes TEXT
         )
-    """
-  )
-  conn.commit()
-  conn.close()
-
+    """)
+    conn.commit()
+    conn.close()
 
 init_db()
 
-
+# Fungsi Hash Password
 def make_hash(password):
-  return hashlib.sha256(str.encode(password)).hexdigest()
+    return hashlib.sha256(str.encode(password)).hexdigest()
 
+def check_password(password, hashed_password):
+    return make_hash(password) == hashed_password
 
-def is_same_as_old_password(username, new_password):
-  conn = sqlite3.connect("trading_journal.db")
-  c = conn.cursor()
-  c.execute("SELECT password FROM users WHERE username = ?", (username,))
-  data = c.fetchone()
-  conn.close()
-  if data:
-    return data[0] == make_hash(new_password)
-  return False
+# ================= FUNGSI AUTH & USER =================
+def get_user(username):
+    conn = sqlite3.connect("trading_journal.db", check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+    data = cursor.fetchone()
+    conn.close()
+    return data
 
-
-def send_email_otp(receiver_email, code):
-  if EMAIL_SENDER == "email_anda@gmail.com" or not EMAIL_SENDER:
-    return False, "Konfigurasi email server belum diatur oleh developer."
-  try:
-    msg = MIMEMultipart()
-
-    # Mengatur nama pengirim agar tampil sebagai "Lensjourneyy"
-    sender_name = "Lensjourneyy"
-    msg["From"] = formataddr((str(Header(sender_name, "utf-8")), EMAIL_SENDER))
-
-    msg["To"] = receiver_email
-    msg["Subject"] = "Kode Verifikasi Keamanan Jurnal Trading"
-
-    body = f"Halo,\n\nBerikut adalah kode verifikasi Anda: {code}\nKode ini berlaku selama 10 menit.\n\nSalam,\nLensjourneyy Team"
-    msg.attach(MIMEText(body, "plain"))
-
-    server = smtplib.SMTP("smtp.gmail.com", 587)
-    server.starttls()
-    server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-    server.sendmail(EMAIL_SENDER, receiver_email, msg.as_string())
-    server.quit()
-    return True, "Kode verifikasi berhasil dikirim ke email!"
-  except Exception as e:
-    return False, f"Gagal mengirim email: {str(e)}"
-
-
-def check_user(username, password):
-  conn = sqlite3.connect("trading_journal.db")
-  c = conn.cursor()
-  c.execute("SELECT password FROM users WHERE username = ?", (username,))
-  data = c.fetchone()
-  conn.close()
-  if data:
-    return data[0] == make_hash(password)
-  return False
-
+def get_user_by_email(email):
+    conn = sqlite3.connect("trading_journal.db", check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
+    data = cursor.fetchone()
+    conn.close()
+    return data
 
 def add_user(username, email, password):
-  conn = sqlite3.connect("trading_journal.db")
-  c = conn.cursor()
-  try:
-    c.execute(
-        "INSERT INTO users(username, email, password) VALUES (?, ?, ?)",
-        (username, email, make_hash(password)),
-    )
+    conn = sqlite3.connect("trading_journal.db", check_same_thread=False)
+    cursor = conn.cursor()
+    hashed_pw = make_hash(password)
+    try:
+        cursor.execute("INSERT INTO users(username, email, password) VALUES (?, ?, ?)", (username, email, hashed_pw))
+        cursor.execute("INSERT INTO password_history(username, password_hash) VALUES (?, ?)", (username, hashed_pw))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        conn.close()
+        return False
+
+def check_password_reuse(username, new_password):
+    """Mengecek apakah password baru sudah pernah digunakan sebelumnya (mencegah reuse)."""
+    conn = sqlite3.connect("trading_journal.db", check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("SELECT password_hash FROM password_history WHERE username = ?", (username,))
+    history = cursor.fetchall()
+    conn.close()
+    
+    new_hash = make_hash(new_password)
+    for row in history:
+        if row[0] == new_hash:
+            return True # Berarti password pernah dipakai
+    return False
+
+def update_password(username, new_password):
+    conn = sqlite3.connect("trading_journal.db", check_same_thread=False)
+    cursor = conn.cursor()
+    hashed_pw = make_hash(new_password)
+    
+    # Update password utama
+    cursor.execute("UPDATE users SET password = ? WHERE username = ?", (hashed_pw, username))
+    # Simpan ke histori password
+    cursor.execute("INSERT INTO password_history(username, password_hash) VALUES (?, ?)", (username, hashed_pw))
     conn.commit()
     conn.close()
-    return True, "Akun berhasil didaftarkan."
-  except sqlite3.IntegrityError:
-    conn.close()
-    return False, "Username atau Email sudah terdaftar."
 
+# ================= FUNGSI EMAIL OTP =================
+def send_email_otp(receiver_email, code):
+    if not EMAIL_SENDER or EMAIL_SENDER == "azumimaulana36@gmail.com" and EMAIL_PASSWORD == "app_password_gmail_anda":
+        return False, "Konfigurasi App Password Gmail belum diatur di secrets!"
+    try:
+        msg = MIMEMultipart()
+        sender_name = "Lensjourneyy Trading"
+        msg["From"] = formataddr((str(Header(sender_name, "utf-8")), EMAIL_SENDER))
+        msg["To"] = receiver_email
+        msg["Subject"] = "Kode OTP Pemulihan Password Jurnal Trading"
 
-def load_trades(username):
-  conn = sqlite3.connect("trading_journal.db")
-  query = """
-        SELECT id, tanggal as Tanggal, pair as Pair, tipe as Tipe, lot as Lot, 
-               entry as Entry, sl as SL, exit as Exit, pl as "P/L ($)", 
-               strategi as Strategi, emosi as "Emosi / Catatan", screenshot_name 
-        FROM trades WHERE username = ?
-    """
-  df = pd.read_sql_query(query, conn, params=(username,))
-  conn.close()
-  return df
+        body = f"Halo,\n\nBerikut adalah kode verifikasi OTP Anda: {code}\nKode ini berlaku untuk proses reset password akun Anda.\n\nSalam,\nLensjourneyy Team"
+        msg.attach(MIMEText(body, "plain"))
 
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.sendmail(EMAIL_SENDER, receiver_email, msg.as_string())
+        server.quit()
+        return True, "Email OTP berhasil dikirim!"
+    except Exception as e:
+        return False, f"Gagal mengirim email: {str(e)}"
 
-def save_trade(username, row_data, file_name, file_bytes):
-  conn = sqlite3.connect("trading_journal.db")
-  c = conn.cursor()
-  c.execute(
-      """
-        INSERT INTO trades (username, tanggal, pair, tipe, lot, entry, sl, exit, pl, strategi, emosi, screenshot_name, screenshot_data)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """,
-      (
-          username,
-          row_data["Tanggal"],
-          row_data["Pair"],
-          row_data["Tipe"],
-          row_data["Lot"],
-          row_data["Entry"],
-          row_data["SL"],
-          row_data["Exit"],
-          row_data["P/L ($)"],
-          row_data["Strategi"],
-          row_data["Emosi / Catatan"],
-          file_name,
-          file_bytes,
-      ),
-  )
-  conn.commit()
-  conn.close()
-
-
-# ==================== SESSION STATE LOGIN ====================
+# ================= MANAJEMEN SESSION STATE =================
 if "logged_in" not in st.session_state:
-  st.session_state.logged_in = False
-if "username" not in st.session_state:
-  st.session_state.username = ""
-if "forgot_step" not in st.session_state:
-  st.session_state.forgot_step = 1
-
-# ==================== HALAMAN AUTHENTICATION ====================
-if not st.session_state.logged_in:
-  col_empty1, col_center, col_empty2 = st.columns([0.1, 1, 0.1])
-
-  with col_center:
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown(
-        "<h1 style='text-align: center; color: #00ADB5;'>📈 TRADING JOURNAL"
-        " & RISK MTRX</h1>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        "<p style='text-align: center; color: #AAAAAA;'>Platform jurnal"
-        " profesional dengan sistem verifikasi email & keamanan modern.</p>",
-        unsafe_allow_html=True,
-    )
-
-    st.markdown("---")
-    st.markdown(
-        "<p style='text-align: center; font-weight: bold; margin-bottom:"
-        " 5px;'>📱 Atur Mode Tampilan Layar Anda:</p>",
-        unsafe_allow_html=True,
-    )
-
-    selected_mode = st.radio(
-        "Pilih Mode Layar",
-        ["🖥️ Mode Desktop (Lebar)", "📱 Mode Kompak (HP / Mobile)"],
-        index=(
-            0
-            if st.session_state.view_mode == "🖥️ Mode Desktop (Lebar)"
-            else 1
-        ),
-        horizontal=True,
-        label_visibility="collapsed",
-    )
-
-    if selected_mode != st.session_state.view_mode:
-      st.session_state.view_mode = selected_mode
-      st.rerun()
-
-    st.markdown("---")
-
-    auth_tab1, auth_tab2, auth_tab3 = st.tabs(
-        ["🔑 Masuk (Login)", "📝 Daftar Akun (Email)", "🔄 Ubah / Lupa Password"]
-    )
-
-    with auth_tab1:
-      st.markdown("<br>", unsafe_allow_html=True)
-      l_user = st.text_input(
-          "Username", key="l_user", placeholder="Masukkan username Anda..."
-      )
-      l_pass = st.text_input(
-          "Password",
-          type="password",
-          key="l_pass",
-          placeholder="Masukkan password Anda...",
-      )
-      st.markdown("<br>", unsafe_allow_html=True)
-      if st.button("🚀 Masuk ke Aplikasi", type="primary"):
-        if check_user(l_user, l_pass):
-          st.session_state.logged_in = True
-          st.session_state.username = l_user
-          st.success(f"Berhasil masuk! Selamat datang kembali, {l_user}.")
-          st.rerun()
-        else:
-          st.error(
-              "⚠️ Username atau password salah. Silakan coba lagi."
-          )
-
-    with auth_tab2:
-      st.markdown("<br>", unsafe_allow_html=True)
-      r_user = st.text_input(
-          "Buat Username Baru",
-          key="r_user",
-          placeholder="Pilih username unik...",
-      )
-      r_email = st.text_input(
-          "Email Aktif", key="r_email", placeholder="nama@email.com"
-      )
-      r_pass = st.text_input(
-          "Buat Password Baru",
-          type="password",
-          key="r_pass",
-          placeholder="Buat password aman...",
-      )
-      st.markdown("<br>", unsafe_allow_html=True)
-      if st.button("✨ Daftar Akun Sekarang"):
-        if (
-            r_user.strip() == ""
-            or r_email.strip() == ""
-            or r_pass.strip() == ""
-        ):
-          st.warning("⚠️ Semua kolom data harus diisi.")
-        else:
-          success, msg = add_user(r_user, r_email, r_pass)
-          if success:
-            st.success(
-                f"🎉 {msg} Silakan pindah ke tab 'Masuk (Login)'."
-            )
-          else:
-            st.error(f"⚠️ {msg}")
-
-    with auth_tab3:
-      st.markdown("<br>", unsafe_allow_html=True)
-      st.markdown("#### Pemulihan Password via Verifikasi Email")
-
-      f_user = st.text_input("Masukkan Username Akun Anda", key="f_user")
-      f_email = st.text_input("Masukkan Email Terdaftar", key="f_email")
-
-      if st.button("📤 Kirim Kode Verifikasi (OTP)"):
-        conn = sqlite3.connect("trading_journal.db")
-        c = conn.cursor()
-        c.execute(
-            "SELECT email FROM users WHERE username = ? AND email = ?",
-            (f_user, f_email),
-        )
-        res = c.fetchone()
-        conn.close()
-
-        if res:
-          otp_code = str(random.randint(100000, 999999))
-          expiry = (datetime.now() + timedelta(minutes=10)).strftime(
-              "%Y-%m-%d %H:%M:%S"
-          )
-
-          conn = sqlite3.connect("trading_journal.db")
-          c = conn.cursor()
-          c.execute(
-              "UPDATE users SET reset_code = ?, code_expiry = ? WHERE username"
-              " = ?",
-              (otp_code, expiry, f_user),
-          )
-          conn.commit()
-          conn.close()
-
-          sent_ok, sent_msg = send_email_otp(f_email, otp_code)
-          if sent_ok:
-            st.success(
-                "✅ Kode verifikasi 6-digit telah dikirim ke email Anda!"
-            )
-            st.session_state.forgot_step = 2
-          else:
-            st.warning(
-                f"⚠️ {sent_msg} (Simulasi Kode OTP Anda: **{otp_code}**)"
-            )
-            st.session_state.forgot_step = 2
-        else:
-          st.error("⚠️ Username dan Email tidak cocok di dalam sistem.")
-
-      if st.session_state.forgot_step == 2:
-        st.markdown("---")
-        entered_otp = st.text_input(
-            "Masukkan Kode Verifikasi (OTP)", key="ent_otp"
-        )
-        new_p1 = st.text_input("Password Baru", type="password", key="np1")
-        new_p2 = st.text_input(
-            "Konfirmasi Password Baru", type="password", key="np2"
-        )
-
-        if st.button("🔒 Konfirmasi Ganti Password"):
-          conn = sqlite3.connect("trading_journal.db")
-          c = conn.cursor()
-          c.execute(
-              "SELECT reset_code, code_expiry FROM users WHERE username = ?",
-              (f_user,),
-          )
-          row = c.fetchone()
-          conn.close()
-
-          if row and row[0] == entered_otp:
-            if datetime.now() <= datetime.strptime(
-                row[1], "%Y-%m-%d %H:%M:%S"
-            ):
-              if new_p1 == new_p2 and len(new_p1) > 0:
-                if is_same_as_old_password(f_user, new_p1):
-                  st.error(
-                      "⚠️ Password baru tidak boleh sama dengan password lama"
-                      " Anda!"
-                  )
-                else:
-                  conn = sqlite3.connect("trading_journal.db")
-                  c = conn.cursor()
-                  c.execute(
-                      "UPDATE users SET password = ?, reset_code = NULL,"
-                      " code_expiry = NULL WHERE username = ?",
-                      (make_hash(new_p1), f_user),
-                  )
-                  conn.commit()
-                  conn.close()
-                  st.success(
-                      "🎉 Password berhasil diubah! Silakan login kembali"
-                      " dengan password baru."
-                  )
-                  st.session_state.forgot_step = 1
-              else:
-                st.error(
-                    "⚠️ Password baru tidak cocok atau kosong."
-                )
-            else:
-              st.error(
-                  "⚠️ Kode verifikasi sudah kedaluwarsa. Silakan minta kode"
-                  " baru."
-              )
-          else:
-            st.error("⚠️ Kode verifikasi salah.")
-
-  st.markdown(
-      '<div class="footer-watermark">⚡ Powered by Lensjourneyy</div>',
-      unsafe_allow_html=True,
-  )
-
-# ==================== APLIKASI UTAMA SETELAH LOGIN ====================
-else:
-  st.sidebar.title(f"👤 Akun: {st.session_state.username}")
-
-  st.sidebar.markdown("---")
-  st.sidebar.subheader("📱 Pengaturan Tampilan")
-  sidebar_mode = st.sidebar.radio(
-      "Pilih Mode Layar:",
-      ["🖥️ Mode Desktop (Lebar)", "📱 Mode Kompak (HP / Mobile)"],
-      index=(
-          0 if st.session_state.view_mode == "🖥️ Mode Desktop (Lebar)" else 1
-      ),
-      key="sb_view_mode",
-  )
-  if sidebar_mode != st.session_state.view_mode:
-    st.session_state.view_mode = sidebar_mode
-    st.rerun()
-
-  if st.sidebar.button("🚪 Keluar (Logout)"):
     st.session_state.logged_in = False
+if "username" not in st.session_state:
     st.session_state.username = ""
-    st.rerun()
+if "auth_mode" not in st.session_state:
+    st.session_state.auth_mode = "Login" # Pilihan: Login, Register, Forgot
 
-  st.sidebar.markdown("---")
-  st.sidebar.title("📈 Navigasi Jurnal")
-  menu = st.sidebar.radio(
-      "Pilih Menu:",
-      [
-          "📊 Dashboard & Analitik",
-          "🧮 Kalkulator Lot & Risiko",
-          "➕ Input Jurnal & Screenshot",
-          "📋 Riwayat & Kalender",
-          "📖 Panduan & Penjelasan Sistem",
-      ],
-  )
+# ================= HALAMAN AUTENTIKASI =================
+if not st.session_state.logged_in:
+    st.sidebar.title("🔐 Akses Akun")
+    choice = st.sidebar.radio("Navigasi", ["Login", "Register", "Lupa Password"])
+    
+    if choice == "Login":
+        st.subheader("Login ke Jurnal Trading")
+        uname = st.text_input("Username")
+        upass = st.text_input("Password", type="password")
+        
+        if st.button("Masuk"):
+            user = get_user(uname)
+            if user and check_password(upass, user[3]):
+                st.session_state.logged_in = True
+                st.session_state.username = uname
+                st.success("Login Berhasil!")
+                st.rerun()
+            else:
+                st.error("Username atau Password salah!")
+                
+    elif choice == "Register":
+        st.subheader("Daftar Akun Baru")
+        new_user = st.text_input("Username Baru")
+        new_email = st.text_input("Email Aktif")
+        new_pass = st.text_input("Password", type="password")
+        confirm_pass = st.text_input("Konfirmasi Password", type="password")
+        
+        if st.button("Daftar"):
+            if new_pass != confirm_pass:
+                st.error("Password tidak cocok!")
+            elif get_user(new_user):
+                st.error("Username sudah terdaftar!")
+            elif get_user_by_email(new_email):
+                st.error("Email sudah terdaftar!")
+            else:
+                if add_user(new_user, new_email, new_pass):
+                    st.success("Registrasi berhasil! Silakan login melalui menu samping.")
+                else:
+                    st.error("Terjadi kesalahan saat mendaftar.")
+                    
+    elif choice == "Lupa Password":
+        st.subheader("Reset Password via OTP Email")
+        
+        if "otp_step" not in st.session_state:
+            st.session_state.otp_step = 1
+        
+        if st.session_state.otp_step == 1:
+            reset_email = st.text_input("Masukkan Email Terdaftar")
+            if st.button("Kirim Kode OTP"):
+                user_data = get_user_by_email(reset_email)
+                if user_data:
+                    otp_code = str(random.randint(100000, 999999))
+                    st.session_state.temp_otp = otp_code
+                    st.session_state.temp_email = reset_email
+                    st.session_state.temp_username = user_data[1]
+                    
+                    success, msg = send_email_otp(reset_email, otp_code)
+                    if success:
+                        st.success(msg)
+                        st.session_state.otp_step = 2
+                        st.rerun()
+                    else:
+                        st.error(msg)
+                else:
+                    st.error("Email tidak ditemukan di database.")
+                    
+        elif st.session_state.otp_step == 2:
+            st.info(f"Kode OTP telah dikirim ke: {st.session_state.temp_email}")
+            entered_otp = st.text_input("Masukkan 6 Digit Kode OTP", max_chars=6)
+            
+            if st.button("Verifikasi OTP"):
+                if entered_otp == st.session_state.temp_otp:
+                    st.success("OTP Valid! Silakan buat password baru.")
+                    st.session_state.otp_step = 3
+                    st.rerun()
+                else:
+                    st.error("Kode OTP salah.")
+                    
+        elif st.session_state.otp_step == 3:
+            new_p1 = st.text_input("Password Baru", type="password")
+            new_p2 = st.text_input("Konfirmasi Password Baru", type="password")
+            
+            if st.button("Simpan Password Baru"):
+                if new_p1 != new_p2:
+                    st.error("Password baru tidak cocok!")
+                elif check_password_reuse(st.session_state.temp_username, new_p1):
+                    st.error("Password ini pernah digunakan sebelumnya. Gunakan password yang belum pernah dipakai!")
+                else:
+                    update_password(st.session_state.temp_username, new_p1)
+                    st.success("Password berhasil diubah! Silakan login kembali.")
+                    # Reset sesi lupa password
+                    del st.session_state.otp_step
+                    del st.session_state.temp_otp
+                    del st.session_state.temp_email
+                    del st.session_state.temp_username
 
-  st.sidebar.markdown("---")
-  st.sidebar.markdown(
-      "<p style='text-align: center; color: #6c757d; font-size: 12px;'>⚡"
-      " Powered by <b>Lensjourneyy</b></p>",
-      unsafe_allow_html=True,
-  )
+# ================= HALAMAN UTAMA APLIKASI (SETELAH LOGIN) =================
+else:
+    st.sidebar.title(f"👤 Halo, {st.session_state.username}")
+    menu = st.sidebar.selectbox("Menu Utama", ["Dashboard & Analisis", "Catat Trade Baru", "Kalkulator Risiko", "Kelola Data Trade"])
+    
+    if st.sidebar.button("Logout"):
+        st.session_state.logged_in = False
+        st.session_state.username = ""
+        st.rerun()
 
-  df_raw = load_trades(st.session_state.username)
+    # Koneksi untuk Ambil Data Trade User
+    conn = sqlite3.connect("trading_journal.db", check_same_thread=False)
+    df_trades = pd.read_sql("SELECT * FROM trades WHERE username = ?", conn, params=(st.session_state.username,))
+    conn.close()
 
-  if menu == "📊 Dashboard & Analitik":
-    st.title("📊 Dashboard & Analitik Performa Trading")
-    st.markdown(
-        "Analisis menyeluruh pertumbuhan modal, win rate per strategi, dan"
-        " performa aset secara visual."
-    )
+    if menu == "Dashboard & Analisis":
+        st.title("📈 Dashboard Performa Trading")
+        
+        if df_trades.empty:
+            st.info("Belum ada data trade yang dicatat. Silakan tambah data melalui menu 'Catat Trade Baru'.")
+        else:
+            total_trades = len(df_trades)
+            total_pnl = df_trades["pnl"].sum()
+            win_trades = len(df_trades[df_trades["pnl"] > 0])
+            win_rate = (win_trades / total_trades) * 100 if total_trades > 0 else 0
+            
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Total Trades", total_trades)
+            col2.metric("Total Net PnL ($)", f"${total_pnl:.2f}")
+            col3.metric("Win Rate", f"{win_rate:.1f}%")
+            
+            st.divider()
+            
+            # Grafik Equity / PnL Cumulative
+            df_trades['date'] = pd.to_datetime(df_trades['date'])
+            df_trades = df_trades.sort_values('date')
+            df_trades['Cumulative_PnL'] = df_trades['pnl'].cumsum()
+            
+            fig = px.line(df_trades, x='date', y='Cumulative_PnL', title="Kurva Pertumbuhan Akun (Equity Curve)", markers=True)
+            st.plotly_chart(fig, use_container_width=True)
 
-    if len(df_raw) > 0:
-      df = df_raw.copy()
-      df["Tanggal"] = pd.to_datetime(df["Tanggal"])
+    elif menu == "Catat Trade Baru":
+        st.title("📝 Catat Trade Harian")
+        
+        with st.form("trade_form"):
+            col1, col2 = st.columns(2)
+            with col1:
+                t_date = st.date_input("Tanggal Trade", value=date.today())
+                t_pair = st.text_input("Pair / Instrumen (Contoh: XAUUSD, EURUSD)").upper()
+                t_type = st.selectbox("Tipe Posisi", ["BUY", "SELL"])
+                t_lot = st.number_input("Ukuran Lot", min_value=0.01, step=0.01, value=0.10)
+            with col2:
+                t_entry = st.number_input("Harga Entry", format="%.5f")
+                t_sl = st.number_input("Stop Loss (SL)", format="%.5f")
+                t_tp = st.number_input("Take Profit (TP)", format="%.5f")
+                t_pnl = st.number_input("Profit/Loss (PnL dalam $)", step=0.01)
+                
+            t_strategy = st.selectbox("Strategi / Konsep", ["Smart Money Concepts (SMC)", "Price Action", "Breakout", "Grid / DCA"])
+            t_notes = st.text_area("Catatan Psikologi / Alasan Entry")
+            
+            submit_trade = st.form_submit_button("Simpan Trade")
+            
+            if submit_trade:
+                status = "WIN" if t_pnl > 0 else "LOSS" if t_pnl < 0 else "BEP"
+                conn = sqlite3.connect("trading_journal.db", check_same_thread=False)
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO trades (username, date, pair, type, lot, entry, sl, tp, pnl, status, strategy, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (st.session_state.username, str(t_date), t_pair, t_type, t_lot, t_entry, t_sl, t_tp, t_pnl, status, t_strategy, t_notes))
+                conn.commit()
+                conn.close()
+                st.success("Trade berhasil disimpan ke jurnal!")
 
-      total_trades = len(df)
-      total_net_profit = df["P/L ($)"].sum()
-      winning_trades = df[df["P/L ($)"] > 0]
-      losing_trades = df[df["P/L ($)"] < 0]
+    elif menu == "Kalkulator Risiko":
+        st.title("🧮 Kalkulator Risiko & Posisi Lot")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            account_balance = st.number_input("Saldo Akun Saat Ini ($)", min_value=10.0, value=1000.0, step=50.0)
+            risk_pct = st.slider("Risiko per Trade (%)", min_value=0.1, max_value=5.0, value=1.0, step=0.1)
+        with col2:
+            entry_price = st.number_input("Harga Entry Target", value=2000.0, step=0.1)
+            sl_price = st.number_input("Harga Stop Loss (SL)", value=1990.0, step=0.1)
+            pip_value_per_lot = st.number_input("Nilai Kontrak / Pip per Lot Standar", value=10.0)
+            
+        if st.button("Hitung Ukuran Posisi"):
+            risk_amount = account_balance * (risk_pct / 100.0)
+            distance_sl = abs(entry_price - sl_price)
+            
+            if distance_sl > 0:
+                recommended_lot = risk_amount / (distance_sl * pip_value_per_lot)
+                st.success(f"**Dana yang di Risiko (Risk Amount):** ${risk_amount:.2f}")
+                st.info(f"**Ukuran Lot yang Disarankan:** {recommended_lot:.2f} Lot")
+            else:
+                st.warning("Jarak Entry dan Stop Loss tidak boleh 0!")
 
-      win_rate = (
-          (len(winning_trades) / total_trades) * 100 if total_trades > 0 else 0
-      )
-      gross_profit = winning_trades["P/L ($)"].sum()
-      gross_loss = abs(losing_trades["P/L ($)"].sum())
-      profit_factor = (
-          (gross_profit / gross_loss)
-          if gross_loss > 0
-          else (gross_profit if gross_profit > 0 else 0.0)
-      )
-
-      col1, col2, col3, col4 = st.columns(4)
-      with col1:
-        st.metric(label="Net P/L Bersih", value=f"${total_net_profit:,.2f}")
-      with col2:
-        st.metric(label="Total Posisi", value=total_trades)
-      with col3:
-        st.metric(label="Win Rate", value=f"{win_rate:.1f}%")
-      with col4:
-        st.metric(label="Profit Factor", value=f"{profit_factor:.2f}")
-
-      st.markdown("---")
-      st.subheader("📈 Grafik Pertumbuhan Ekuitas (Equity Curve)")
-
-      df = df.sort_values("Tanggal")
-      df["Cumulative P/L"] = df["P/L ($)"].cumsum()
-
-      fig = px.area(
-          df,
-          x="Tanggal",
-          y="Cumulative P/L",
-          markers=True,
-          labels={
-              "Cumulative P/L": "Total Akumulasi P/L ($)",
-              "Tanggal": "Tanggal Transaksi",
-          },
-      )
-
-      fig.update_traces(
-          line=dict(color="#00ADB5", width=3),
-          marker=dict(
-              size=8, color="#EEEEEE", line=dict(color="#00ADB5", width=2)
-          ),
-          fill="tozeroy",
-          fillcolor="rgba(0, 173, 181, 0.15)",
-      )
-
-      fig.update_layout(
-          plot_bgcolor="rgba(0,0,0,0)",
-          paper_bgcolor="rgba(0,0,0,0)",
-          font=dict(color="#CCCCCC", family="sans-serif"),
-          xaxis=dict(
-              showgrid=True,
-              gridcolor="rgba(255,255,255,0.08)",
-              zeroline=False,
-          ),
-          yaxis=dict(
-              showgrid=True,
-              gridcolor="rgba(255,255,255,0.08)",
-              zeroline=False,
-          ),
-          margin=dict(l=20, r=20, t=30, b=20),
-          hovermode="x unified",
-      )
-
-      st.plotly_chart(fig, use_container_width=True)
-
-      st.markdown("---")
-      col_a, col_b = st.columns(2)
-      with col_a:
-        st.subheader("📊 Performa Berdasarkan Pair")
-        pair_summary = df.groupby("Pair")["P/L ($)"].sum().reset_index()
-        st.dataframe(pair_summary, use_container_width=True)
-      with col_b:
-        st.subheader("🎯 Performa Berdasarkan Strategi")
-        strat_summary = df.groupby("Strategi")["P/L ($)"].sum().reset_index()
-        st.dataframe(strat_summary, use_container_width=True)
-    else:
-      st.info(
-          "Belum ada data trading yang dicatat. Silakan mulai mencatat"
-          " melalui menu **Input Jurnal & Screenshot**."
-      )
-
-  elif menu == "🧮 Kalkulator Lot & Risiko":
-    st.title("🧮 Kalkulator Posisi & Ukuran Lot (Position Sizing)")
-    st.markdown(
-        "Alat bantu manajemen risiko profesional untuk menghitung ukuran Lot"
-        " ideal agar modal akun tetap aman."
-    )
-
-    c1, c2, c3 = st.columns(3)
-    with c1:
-      acc_balance = st.number_input(
-          "Total Modal Akun ($)", value=1000.0, step=100.0
-      )
-      risk_pct = st.number_input("Risiko Maksimal (%)", value=1.0, step=0.1)
-    with c2:
-      calc_pair = st.selectbox(
-          "Pair / Aset",
-          ["XAUUSD (Gold)", "BTCUSD (Bitcoin)", "EURUSD", "GBPUSD", "USDJPY"],
-      )
-      calc_sl_pips = st.number_input(
-          "Jarak Stop Loss (dalam Pips / Points)", value=20.0, step=1.0
-      )
-    with c3:
-      st.markdown("<br>", unsafe_allow_html=True)
-      allowed_risk_usd = acc_balance * (risk_pct / 100.0)
-      ideal_lot = allowed_risk_usd / (calc_sl_pips * 10)
-
-      st.metric(
-          label="Batas Risiko Dana ($)", value=f"${allowed_risk_usd:,.2f}"
-      )
-      st.success(
-          f"📌 **Rekomendasi Lot Ideal:** `{max(0.01, round(ideal_lot, 2))}`"
-          " Lot"
-      )
-
-  elif menu == "➕ Input Jurnal & Screenshot":
-    st.title("➕ Input Jurnal Trading & Unggah Screenshot")
-    st.markdown(
-        "Catat transaksi harian Anda lengkap dengan parameter risiko, evaluasi"
-        " psikologi, serta lampiran gambar bukti setup chart."
-    )
-    st.markdown("---")
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-      t_date = st.date_input("Tanggal Transaksi", datetime.today())
-      t_pair = st.selectbox(
-          "Pair / Aset",
-          ["XAUUSD (Gold)", "BTCUSD (Bitcoin)", "EURUSD", "GBPUSD", "USDJPY"],
-      )
-      t_type = st.selectbox("Tipe Order", ["Buy", "Sell"])
-    with col2:
-      t_lot = st.number_input("Lot / Size", min_value=0.01, value=0.01, step=0.01)
-      t_entry = st.number_input(
-          "Harga Masuk (Entry)", value=4500.00, step=0.1, format="%.2f"
-      )
-      t_sl = st.number_input(
-          "Harga Stop Loss (SL)", value=4480.00, step=0.1, format="%.2f"
-      )
-    with col3:
-      t_exit = st.number_input(
-          "Harga Keluar Aktual (Exit)", value=4530.00, step=0.1, format="%.2f"
-      )
-      t_strat = st.text_input("Strategi / Setup", "SMC / Price Action")
-      t_note = st.selectbox(
-          "Evaluasi Emosi / Kondisi",
-          [
-              "Disiplin & Sesuai Plan",
-              "FOMO / Masuk Tergesa-gesa",
-              "Cut Loss Terlambat",
-              "Revenge Trading",
-          ],
-      )
-
-    uploaded_file = st.file_uploader(
-        "📸 Unggah Screenshot Chart (Opsional - Format PNG/JPG)",
-        type=["png", "jpg", "jpeg"],
-    )
-    file_name_val = None
-    file_bytes_val = None
-    if uploaded_file is not None:
-      file_name_val = uploaded_file.name
-      file_bytes_val = uploaded_file.read()
-
-    if t_type == "Buy":
-      sl_diff = t_entry - t_sl
-      price_diff = t_exit - t_entry
-    else:
-      sl_diff = t_sl - t_entry
-      price_diff = t_entry - t_exit
-
-    risk_amount = sl_diff * t_lot * 100
-    calculated_pl = price_diff * t_lot * 100
-
-    st.markdown("---")
-    info_col1, info_col2 = st.columns(2)
-    with info_col1:
-      st.warning(
-          f"🛡️ **Potensi Risiko (Stop Loss):** -${abs(risk_amount):,.2f}"
-      )
-    with info_col2:
-      if calculated_pl > 0:
-        st.success(
-            f"💡 **Hasil Aktual (Exit):** +${calculated_pl:,.2f} (PROFIT ✅)"
-        )
-      else:
-        st.error(
-            f"💡 **Hasil Aktual (Exit):** -${abs(calculated_pl):,.2f} (LOSS"
-            " ❌)"
-        )
-    st.markdown("---")
-
-    if st.button("💾 Simpan Jurnal & Screenshot ke Database", type="primary"):
-      clean_pair = t_pair.split(" ")[0]
-      new_row = {
-          "Tanggal": str(t_date),
-          "Pair": clean_pair,
-          "Tipe": t_type,
-          "Lot": t_lot,
-          "Entry": t_entry,
-          "SL": t_sl,
-          "Exit": t_exit,
-          "P/L ($)": round(calculated_pl, 2),
-          "Strategi": t_strat,
-          "Emosi / Catatan": t_note,
-      }
-      save_trade(
-          st.session_state.username, new_row, file_name_val, file_bytes_val
-      )
-      st.success(
-          "🎉 Data jurnal dan screenshot berhasil disimpan ke akun Anda!"
-      )
-
-  elif menu == "📋 Riwayat & Kalender":
-    st.title("📋 Riwayat Lengkap & Galeri Jurnal Trading")
-    st.markdown(
-        "Daftar seluruh transaksi yang pernah Anda catat, lengkap dengan opsi"
-        " unduh data dan galeri gambar chart."
-    )
-
-    if len(df_raw) > 0:
-      display_df = df_raw.drop(
-          columns=["id", "screenshot_name"], errors="ignore"
-      )
-      st.dataframe(display_df, use_container_width=True)
-
-      csv = display_df.to_csv(index=False).encode("utf-8")
-      st.download_button(
-          label="📥 Download Jurnal ke Format CSV",
-          data=csv,
-          file_name=f"jurnal_trading_{st.session_state.username}.csv",
-          mime="text/css",
-      )
-
-      st.markdown("---")
-      st.subheader("🖼️ Galeri Screenshot Chart Transaksi")
-      conn = sqlite3.connect("trading_journal.db")
-      c = conn.cursor()
-      c.execute(
-          "SELECT tanggal, pair, pl, screenshot_name, screenshot_data FROM"
-          " trades WHERE username = ? AND screenshot_data IS NOT NULL",
-          (st.session_state.username,),
-      )
-      img_rows = c.fetchall()
-      conn.close()
-
-      if img_rows:
-        for row in img_rows:
-          dt, pr, pl_val, s_name, s_data = row
-          with st.expander(
-              f"📁 Tanggal: {dt} | Pair: {pr} | P/L: ${pl_val} | File:"
-              f" {s_name}"
-          ):
-            st.image(s_data, caption=s_name, use_container_width=True)
-      else:
-        st.info(
-            "Belum ada screenshot chart yang diunggah pada riwayat transaksi."
-        )
-    else:
-      st.info("Belum ada data riwayat trading di akun ini.")
-
-  elif menu == "📖 Panduan & Penjelasan Sistem":
-    st.title("📖 Panduan & Penjelasan Sistem Trading Journal")
-    st.markdown(
-        "Pusat informasi dan dokumentasi komprehensif agar Anda dapat"
-        " menguasai seluruh fungsi menu aplikasi."
-    )
-    st.markdown("---")
-
-    with st.expander("📊 1. Panduan Menu: Dashboard & Analitik"):
-      st.markdown("""
-            * **Fungsi Utama:** Menyediakan ringkasan performa trading secara visual dan menyeluruh bagi akun Anda.
-            * **Metrik Utama (KPI):**
-                * **Net P/L Bersih ($):** Total akumulasi keuntungan bersih atau kerugian bersih dari seluruh transaksi tertutup.
-                * **Total Posisi:** Jumlah total transaksi yang telah dicatat dan dieksekusi.
-                * **Win Rate (%):** Tingkat akurasi persentase kemenangan berdasarkan jumlah posisi profit berbanding total trade.
-                * **Profit Factor:** Perbandingan antara *Gross Profit* (total profit kotor) dibagi *Gross Loss* (total loss kotor). Nilai > 1.5 mengindikasikan performa trading yang sehat.
-            * **Equity Curve (Grafik Area):** Grafik interaktif yang merekam naik-turunnya akumulasi modal akun dari waktu ke waktu berdasarkan tanggal transaksi.
-            * **Performa Pair & Strategi:** Tabel ringkas yang memetakan aset atau strategi mana yang memberikan kontribusi profit terbesar.
-            """)
-
-    with st.expander("🧮 2. Panduan Menu: Kalkulator Lot & Risiko"):
-      st.markdown("""
-            * **Fungsi Utama:** Alat bantu perhitungan manajemen risiko (*Risk Management*) sebelum Anda membuka posisi di market agar terhindar dari *over-leverage*.
-            * **Cara Penggunaan:**
-                1. Masukkan **Total Modal Akun ($)** yang Anda miliki saat ini.
-                2. Tentukan **Risiko Maksimal (%)** yang siap ditoleransi per transaksi (umumnya 1% - 2%).
-                3. Pilih **Pair / Aset** yang ditransaksikan.
-                4. Masukkan **Jarak Stop Loss** dalam satuan Pips atau Points.
-            * **Hasil Kalkulasi:** Sistem otomatis menghitung batas risiko dalam dolar ($) serta merekomendasikan **Ukuran Lot Ideal** yang aman untuk dieksekusi.
-            """)
-
-    with st.expander("➕ 3. Panduan Menu: Input Jurnal & Screenshot"):
-      st.markdown("""
-            * **Fungsi Utama:** Formulir pencatatan harian untuk mendokumentasikan parameter transaksi secara terstruktur—termasuk penetapan **Stop Loss (SL)** sebagai pengaman risiko utama—beserta evaluasi psikologisnya.
-            * **Langkah Input Data & Skenario Terkena SL:**
-                * **Tanggal & Pair:** Masukkan tanggal eksekusi dan pilih instrumen aset.
-                * **Tipe Order:** Pilih apakah posisi berupa **Buy** (Long) atau **Sell** (Short).
-                * **Lot, Entry, & SL:** Masukkan ukuran lot, harga masuk (*entry price*), dan level harga **Stop Loss (SL)**.
-                * **Penanganan Saat Terkena SL di Market (Real-Time):** Jika posisi Anda di platform trading (seperti MT5) terkena *Stop Loss* secara *real-time* di market, buka menu ini dan masukkan harga penutupan aktual pada kolom **Harga Keluar Aktual (Exit)** (biasanya nilainya persis atau sangat dekat dengan level *Stop Loss* yang Anda pasang). 
-                * **Pencatatan Kerugian:** Dengan memasukkan harga Exit tersebut, sistem akan otomatis menghitung dan menuliskan nominal kerugian bersih (berwarna merah) ke dalam database begitu Anda menekan tombol simpan, sehingga laporan kerugian Anda terekam dengan akurat di jurnal.
-                * **Strategi & Emosi:** Masukkan nama strategi teknikal dan evaluasi kondisi psikologis saat trade tersebut terjadi (misalnya: *Disiplin & Sesuai Plan* atau *Cut Loss Terlambat*).
-                * **Unggah Screenshot:** Lampirkan gambar bukti chart (PNG/JPG) untuk evaluasi teknikal jangka panjang.
-            * **Kalkulasi Otomatis:** Sistem secara instan menampilkan estimasi risiko Stop Loss serta hasil akhir transaksi (Profit/Loss) sebelum data disimpan permanen ke database.
-            """)
-
-    with st.expander("📋 4. Panduan Menu: Riwayat & Kalender"):
-      st.markdown("""
-            * **Fungsi Utama:** Pusat arsip data transaksi masa lalu guna keperluan evaluasi berkala dan audit performa trading.
-            * **Fitur & Navigasi:**
-                * **Tabel Riwayat Transaksi:** Menampilkan seluruh daftar riwayat trade lengkap dalam format tabel bersih.
-                * **Ekspor CSV:** Tombol unduh untuk mengunduh seluruh data jurnal ke format CSV agar dapat dibuka atau dianalisis lebih lanjut menggunakan Microsoft Excel / Google Sheets.
-                * **Galeri Screenshot Chart:** Bagian ekspansi interaktif untuk meninjau ulang gambar setup chart yang pernah diunggah pada transaksi tertentu, lengkap dengan rincian tanggal, pair, dan hasil P/L-nya.
-            """)
-
-    with st.expander(
-        "🛠️ 5. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"
-    ):
-      st.markdown("""
-            * **Registrasi & Login Akun:** Setiap akun diamankan dengan enkripsi *hash* SHA-256 untuk menjaga privasi data trading Anda.
-            * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP 6-digit via email untuk proses reset password yang aman dan terlindungi.
-            * **Validasi Password Lama:** Sistem secara otomatis mendeteksi dan menolak apabila Anda mencoba memasukkan password baru yang sama persis dengan password lama Anda.
-            * **Mode Tampilan Responsif:** Anda dapat beralih antara **Mode Desktop (Lebar)** dan **Mode Kompak (HP / Mobile)** melalui tombol pengaturan di menu login maupun sidebar utama agar aplikasi tetap nyaman diakses lewat berbagai perangkat.
-            """)
+    elif menu == "Kelola Data Trade":
+        st.title("📊 Riwayat & Manajemen Jurnal Trade")
+        
+        if df_trades.empty:
+            st.info("Belum ada data riwayat trade.")
+        else:
+            st.dataframe(df_trades, use_container_width=True)
+            
+            trade_ids = df_trades["id"].tolist()
+            selected_id = st.selectbox("Pilih ID Trade yang ingin dihapus", trade_ids)
+            
+            if st.button("Hapus Trade Terpilih"):
+                conn = sqlite3.connect("trading_journal.db", check_same_thread=False)
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM trades WHERE id = ? AND username = ?", (selected_id, st.session_state.username))
+                conn.commit()
+                conn.close()
+                st.success(f"Trade dengan ID {selected_id} berhasil dihapus.")
+                st.rerun()

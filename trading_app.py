@@ -11,7 +11,7 @@ import plotly.express as px
 
 st.set_page_config(page_title="Jurnal & Kalkulator Risiko Trading", page_icon="📈", layout="wide")
 
-# ==================== KONFIGURASI EMAIL (AMBIL DARI STREAMLIT SECRETS) ====================
+# ==================== KONFIGURASI EMAIL PENGIRIM (DARI STREAMLIT SECRETS) ====================
 try:
     EMAIL_SENDER = st.secrets["email"]["sender"]
     EMAIL_PASSWORD = st.secrets["email"]["password"]
@@ -120,9 +120,20 @@ def send_email_otp(receiver_email, code):
         msg = MIMEMultipart()
         msg['From'] = EMAIL_SENDER
         msg['To'] = receiver_email
-        msg['Subject'] = "Kode Verifikasi Keamanan Jurnal Trading"
+        msg['Subject'] = "Kode Verifikasi Pemulihan Password Jurnal Trading"
         
-        body = f"Halo,\n\nBerikut adalah kode verifikasi Anda: {code}\nKode ini berlaku selama 10 menit.\n\nSalam,\nLensjourneyy Team"
+        body = f"""Halo,
+
+Anda menerima email ini karena ada permintaan untuk mereset password akun Jurnal Trading Anda.
+
+Berikut adalah kode verifikasi (OTP) 6-digit Anda:
+{code}
+
+Kode ini berlaku selama 10 menit ke depan. Jika Anda tidak merasa melakukan permintaan ini, abaikan saja email ini.
+
+Salam,
+Lensjourneyy Team"""
+        
         msg.attach(MIMEText(body, 'plain'))
         
         server = smtplib.SMTP('smtp.gmail.com', 587)
@@ -130,7 +141,7 @@ def send_email_otp(receiver_email, code):
         server.login(EMAIL_SENDER, EMAIL_PASSWORD)
         server.sendmail(EMAIL_SENDER, receiver_email, msg.as_string())
         server.quit()
-        return True, "Kode verifikasi berhasil dikirim ke email!"
+        return True, "Kode verifikasi berhasil dikirim ke email tujuan!"
     except Exception as e:
         return False, f"Gagal mengirim email: {str(e)}"
 
@@ -263,6 +274,7 @@ if not st.session_state.logged_in:
                 conn.close()
                 
                 if res:
+                    target_email = res[0] # Mengambil email persis dari database user yang bersangkutan
                     otp_code = str(random.randint(100000, 999999))
                     expiry = (datetime.now() + timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
                     
@@ -272,19 +284,19 @@ if not st.session_state.logged_in:
                     conn.commit()
                     conn.close()
                     
-                    sent_ok, sent_msg = send_email_otp(f_email, otp_code)
+                    # Mengirim OTP langsung ke email user tersebut
+                    sent_ok, sent_msg = send_email_otp(target_email, otp_code)
                     if sent_ok:
-                        st.success("✅ Kode verifikasi 6-digit telah dikirim ke email Anda!")
+                        st.success(f"✅ Kode verifikasi 6-digit telah dikirim secara otomatis ke email: **{target_email}**. Periksa kotak masuk atau folder spam Anda.")
                         st.session_state.forgot_step = 2
                     else:
-                        st.warning(f"⚠️ {sent_msg} (Simulasi Kode OTP Anda: **{otp_code}**)")
-                        st.session_state.forgot_step = 2
+                        st.error(f"⚠️ {sent_msg}")
                 else:
                     st.error("⚠️ Username dan Email tidak cocok di dalam sistem.")
 
             if st.session_state.forgot_step == 2:
                 st.markdown("---")
-                entered_otp = st.text_input("Masukkan Kode Verifikasi (OTP)", key="ent_otp")
+                entered_otp = st.text_input("Masukkan Kode Verifikasi (OTP) dari Email", key="ent_otp")
                 new_p1 = st.text_input("Password Baru", type="password", key="np1")
                 new_p2 = st.text_input("Konfirmasi Password Baru", type="password", key="np2")
                 
@@ -540,7 +552,7 @@ else:
             
         with st.expander("🧮 2. Panduan Menu: Kalkulator Lot & Risiko"):
             st.markdown("""
-            * **Fungsi Utama:** Alat bantu perhitungan manajemen risiko (*Risk Management*) sebelum Anda membuka posisi di market agar terhindar dari *over-leverage*.
+            * **Fungsi Utama:** Alat bantu manajemen risiko (*Risk Management*) sebelum Anda membuka posisi di market agar terhindar dari *over-leverage*.
             * **Cara Penggunaan:**
                 1. Masukkan **Total Modal Akun ($)** yang Anda miliki saat ini.
                 2. Tentukan **Risiko Maksimal (%)** yang siap ditoleransi per transaksi (umumnya 1% - 2%).

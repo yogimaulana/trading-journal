@@ -10,9 +10,19 @@ from email.mime.multipart import MIMEMultipart
 import plotly.express as px
 
 st.set_page_config(
-    page_title="Lensjourneyy · Professional Trading Journal & Risk MTRX", 
-    page_icon="📈", 
+    page_title="Lensjourneyy · Professional Trading Journal & Risk MTRX",
+    page_icon="📈",
     layout="wide"
+)
+
+# Tambahkan CSS ini persis di bawahnya
+st.markdown("""
+    <style>
+    header[data-testid="stHeader"] {
+        display: none !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
 )
 
 # ==================== KONFIGURASI EMAIL PENGIRIM (SMTP) ====================

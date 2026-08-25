@@ -12,9 +12,12 @@ import plotly.express as px
 st.set_page_config(page_title="Jurnal & Kalkulator Risiko Trading", page_icon="📈", layout="wide")
 
 # ==================== KONFIGURASI EMAIL PENGIRIM (SMTP) ====================
-# Diperbaiki agar dapat membaca st.secrets secara otomatis (atau fallback ke email Anda)
-EMAIL_SENDER = st.secrets.get("EMAIL_SENDER", "azumimaulana36@gmail.com")
-EMAIL_PASSWORD = st.secrets.get("EMAIL_PASSWORD", "kfud dalb ztal kolp")
+try:
+    EMAIL_SENDER = st.secrets["email"]["sender"]
+    EMAIL_PASSWORD = st.secrets["email"]["password"]
+except Exception:
+    EMAIL_SENDER = st.secrets.get("EMAIL_SENDER", "azumimaulana36@gmail.com")
+    EMAIL_PASSWORD = st.secrets.get("EMAIL_PASSWORD", "kfud dalb ztal kolp")
 
 # ==================== PENGATURAN MODE TAMPILAN (DESKTOP / MOBILE) ====================
 if 'view_mode' not in st.session_state:
@@ -116,11 +119,11 @@ def send_email_otp(receiver_email, code):
         return False, "Konfigurasi email server belum diatur oleh developer."
     try:
         msg = MIMEMultipart()
-        msg['From'] = EMAIL_SENDER
+        msg['From'] = f"Lensjourneyy Support <{EMAIL_SENDER}>"
         msg['To'] = receiver_email
         msg['Subject'] = "Kode Verifikasi Keamanan Jurnal Trading"
         
-        body = f"Halo,\n\nBerikut adalah kode verifikasi Anda: {code}\nKode ini berlaku selama 10 menit.\n\nSalam,\nLensjourneyy Team"
+        body = f"Halo,\n\nBerikut adalah kode verifikasi Anda: {code}\nKode ini berlaku selama 10 menit.\n\nSalam,\nLensjourneyy Support Team"
         msg.attach(MIMEText(body, 'plain'))
         
         server = smtplib.SMTP('smtp.gmail.com', 587)
@@ -313,7 +316,7 @@ if not st.session_state.logged_in:
                     else:
                         st.error("⚠️ Kode verifikasi salah.")
 
-    st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy</div>', unsafe_allow_html=True)
+    st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy Support</div>', unsafe_allow_html=True)
 
 # ==================== APLIKASI UTAMA SETELAH LOGIN ====================
 else:
@@ -347,7 +350,7 @@ else:
     ])
 
     st.sidebar.markdown("---")
-    st.sidebar.markdown("<p style='text-align: center; color: #6c757d; font-size: 12px;'>⚡ Powered by <b>Lensjourneyy</b></p>", unsafe_allow_html=True)
+    st.sidebar.markdown("<p style='text-align: center; color: #6c757d; font-size: 12px;'>⚡ Powered by <b>Lensjourneyy Support</b></p>", unsafe_allow_html=True)
 
     df_raw = load_trades(st.session_state.username)
 
@@ -587,14 +590,14 @@ else:
             * **Fungsi Utama:** Pusat arsip data transaksi masa lalu guna keperluan evaluasi berkala dan audit performa trading.
             * **Fitur & Navigasi:**
                 * **Tabel Riwayat Transaksi:** Menampilkan seluruh daftar riwayat trade lengkap dalam format tabel bersih.
-                * **Ekspor CSV:** Tombol unduh untuk mengunduh seluruh data jurnal ke format CSV agar dapat dibuka atau dianalisis lebih lanjut menggunakan Microsoft Excel / Google Sheets.
+                * **Ekspor CSV:** Tombol unduh untuk mendukuh seluruh data jurnal ke format CSV agar dapat dibuka atau dianalisis lebih lanjut menggunakan Microsoft Excel / Google Sheets.
                 * **Galeri Screenshot Chart:** Bagian ekspansi interaktif untuk meninjau ulang gambar setup chart yang pernah diunggah pada transaksi tertentu, lengkap dengan rincian tanggal, pair, dan hasil P/L-nya.
             """)
 
         with st.expander("🛠️ 5. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):
             st.markdown("""
             * **Registrasi & Login Akun:** Setiap akun diamankan dengan enkripsi *hash* SHA-256 untuk menjaga privasi data trading Anda.
-            * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP 6-digit via email untuk proses reset password yang aman dan terlindungi.
+            * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP 6-digit via email untuk proses reset password yang aman dan terlindungi dengan nama pengirim **Lensjourneyy Support**.
             * **Validasi Password Lama:** Sistem secara otomatis mendeteksi dan menolak apabila Anda mencoba memasukkan password baru yang sama persis dengan password lama Anda.
             * **Mode Tampilan Responsif:** Anda dapat beralih antara **Mode Desktop (Lebar)** dan **Mode Kompak (HP / Mobile)** melalui tombol pengaturan di menu login maupun sidebar utama agar aplikasi tetap nyaman diakses lewat berbagai perangkat.
             """)

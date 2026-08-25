@@ -13,8 +13,8 @@ st.set_page_config(page_title="Jurnal & Kalkulator Risiko Trading", page_icon="ð
 
 # ==================== KONFIGURASI EMAIL PENGIRIM (SMTP) ====================
 # Diperbaiki agar dapat membaca st.secrets secara otomatis (atau fallback ke email Anda)
-EMAIL_SENDER = st.secrets.get("EMAIL_SENDER", "email_anda@gmail.com")
-EMAIL_PASSWORD = st.secrets.get("EMAIL_PASSWORD", "app_password_gmail_anda")
+EMAIL_SENDER = st.secrets.get("EMAIL_SENDER", "azumimaulana36@gmail.com")
+EMAIL_PASSWORD = st.secrets.get("EMAIL_PASSWORD", "kfud dalb ztal kolp")
 
 # ==================== PENGATURAN MODE TAMPILAN (DESKTOP / MOBILE) ====================
 if 'view_mode' not in st.session_state:

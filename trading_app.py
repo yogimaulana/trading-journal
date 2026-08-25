@@ -11,13 +11,13 @@ import plotly.express as px
 
 st.set_page_config(page_title="Jurnal & Kalkulator Risiko Trading", page_icon="📈", layout="wide")
 
-# ==================== KONFIGURASI EMAIL PENGIRIM (DARI STREAMLIT SECRETS) ====================
+# ==================== KONFIGURASI EMAIL (AMBIL DARI STREAMLIT SECRETS) ====================
 try:
     EMAIL_SENDER = st.secrets["email"]["sender"]
     EMAIL_PASSWORD = st.secrets["email"]["password"]
 except Exception:
-    EMAIL_SENDER = "email_anda@gmail.com"
-    EMAIL_PASSWORD = "app_password_gmail_anda"
+    EMAIL_SENDER = "azumimaulana36@gmail.com"
+    EMAIL_PASSWORD = ""
 
 # ==================== PENGATURAN MODE TAMPILAN (DESKTOP / MOBILE) ====================
 if 'view_mode' not in st.session_state:
@@ -114,11 +114,12 @@ def is_same_as_old_password(username, new_password):
     return False
 
 def send_email_otp(receiver_email, code):
-    if EMAIL_SENDER == "email_anda@gmail.com":
+    if not EMAIL_SENDER or not EMAIL_PASSWORD:
         return False, "Konfigurasi email server belum diatur pada Streamlit Secrets."
     try:
         msg = MIMEMultipart()
-        msg['From'] = EMAIL_SENDER
+        # Mengubah nama tampilan pengirim menjadi Lensjourneyy Support
+        msg['From'] = f"Lensjourneyy Support <{EMAIL_SENDER}>"
         msg['To'] = receiver_email
         msg['Subject'] = "Kode Verifikasi Pemulihan Password Jurnal Trading"
         
@@ -274,7 +275,7 @@ if not st.session_state.logged_in:
                 conn.close()
                 
                 if res:
-                    target_email = res[0] # Mengambil email persis dari database user yang bersangkutan
+                    target_email = res[0]
                     otp_code = str(random.randint(100000, 999999))
                     expiry = (datetime.now() + timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
                     
@@ -284,7 +285,6 @@ if not st.session_state.logged_in:
                     conn.commit()
                     conn.close()
                     
-                    # Mengirim OTP langsung ke email user tersebut
                     sent_ok, sent_msg = send_email_otp(target_email, otp_code)
                     if sent_ok:
                         st.success(f"✅ Kode verifikasi 6-digit telah dikirim secara otomatis ke email: **{target_email}**. Periksa kotak masuk atau folder spam Anda.")

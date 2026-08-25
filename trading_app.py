@@ -11,13 +11,9 @@ import plotly.express as px
 
 st.set_page_config(page_title="Jurnal & Kalkulator Risiko Trading", page_icon="📈", layout="wide")
 
-# ==================== KONFIGURASI EMAIL (AMBIL DARI STREAMLIT SECRETS) ====================
-try:
-    EMAIL_SENDER = st.secrets["email"]["sender"]
-    EMAIL_PASSWORD = st.secrets["email"]["password"]
-except Exception:
-    EMAIL_SENDER = "azumimaulana36@gmail.com"
-    EMAIL_PASSWORD = ""
+# ==================== KONFIGURASI EMAIL PENGIRIM (SMTP) ====================
+EMAIL_SENDER = "email_anda@gmail.com"
+EMAIL_PASSWORD = "app_password_gmail_anda"
 
 # ==================== PENGATURAN MODE TAMPILAN (DESKTOP / MOBILE) ====================
 if 'view_mode' not in st.session_state:
@@ -87,6 +83,7 @@ def init_db():
             tipe TEXT,
             lot REAL,
             entry REAL,
+            sl REAL,
             exit REAL,
             pl REAL,
             strategi TEXT,
@@ -114,27 +111,15 @@ def is_same_as_old_password(username, new_password):
     return False
 
 def send_email_otp(receiver_email, code):
-    if not EMAIL_SENDER or not EMAIL_PASSWORD:
-        return False, "Konfigurasi email server belum diatur pada Streamlit Secrets."
+    if EMAIL_SENDER == "email_anda@gmail.com":
+        return False, "Konfigurasi email server belum diatur oleh developer."
     try:
         msg = MIMEMultipart()
-        # Mengubah nama tampilan pengirim menjadi Lensjourneyy Support
-        msg['From'] = f"Lensjourneyy Support <{EMAIL_SENDER}>"
+        msg['From'] = EMAIL_SENDER
         msg['To'] = receiver_email
-        msg['Subject'] = "Kode Verifikasi Pemulihan Password Jurnal Trading"
+        msg['Subject'] = "Kode Verifikasi Keamanan Jurnal Trading"
         
-        body = f"""Halo,
-
-Anda menerima email ini karena ada permintaan untuk mereset password akun Jurnal Trading Anda.
-
-Berikut adalah kode verifikasi (OTP) 6-digit Anda:
-{code}
-
-Kode ini berlaku selama 10 menit ke depan. Jika Anda tidak merasa melakukan permintaan ini, abaikan saja email ini.
-
-Salam,
-Lensjourneyy Team"""
-        
+        body = f"Halo,\n\nBerikut adalah kode verifikasi Anda: {code}\nKode ini berlaku selama 10 menit.\n\nSalam,\nLensjourneyy Team"
         msg.attach(MIMEText(body, 'plain'))
         
         server = smtplib.SMTP('smtp.gmail.com', 587)
@@ -142,7 +127,7 @@ Lensjourneyy Team"""
         server.login(EMAIL_SENDER, EMAIL_PASSWORD)
         server.sendmail(EMAIL_SENDER, receiver_email, msg.as_string())
         server.quit()
-        return True, "Kode verifikasi berhasil dikirim ke email tujuan!"
+        return True, "Kode verifikasi berhasil dikirim ke email!"
     except Exception as e:
         return False, f"Gagal mengirim email: {str(e)}"
 
@@ -172,7 +157,7 @@ def load_trades(username):
     conn = sqlite3.connect('trading_journal.db')
     query = '''
         SELECT id, tanggal as Tanggal, pair as Pair, tipe as Tipe, lot as Lot, 
-               entry as Entry, exit as Exit, pl as "P/L ($)", 
+               entry as Entry, sl as SL, exit as Exit, pl as "P/L ($)", 
                strategi as Strategi, emosi as "Emosi / Catatan", screenshot_name 
         FROM trades WHERE username = ?
     '''
@@ -184,11 +169,11 @@ def save_trade(username, row_data, file_name, file_bytes):
     conn = sqlite3.connect('trading_journal.db')
     c = conn.cursor()
     c.execute('''
-        INSERT INTO trades (username, tanggal, pair, tipe, lot, entry, exit, pl, strategi, emosi, screenshot_name, screenshot_data)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO trades (username, tanggal, pair, tipe, lot, entry, sl, exit, pl, strategi, emosi, screenshot_name, screenshot_data)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         username, row_data["Tanggal"], row_data["Pair"], row_data["Tipe"], row_data["Lot"], 
-        row_data["Entry"], row_data["Exit"], row_data["P/L ($)"], 
+        row_data["Entry"], row_data["SL"], row_data["Exit"], row_data["P/L ($)"], 
         row_data["Strategi"], row_data["Emosi / Catatan"], file_name, file_bytes
     ))
     conn.commit()
@@ -275,7 +260,6 @@ if not st.session_state.logged_in:
                 conn.close()
                 
                 if res:
-                    target_email = res[0]
                     otp_code = str(random.randint(100000, 999999))
                     expiry = (datetime.now() + timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
                     
@@ -285,18 +269,19 @@ if not st.session_state.logged_in:
                     conn.commit()
                     conn.close()
                     
-                    sent_ok, sent_msg = send_email_otp(target_email, otp_code)
+                    sent_ok, sent_msg = send_email_otp(f_email, otp_code)
                     if sent_ok:
-                        st.success(f"✅ Kode verifikasi 6-digit telah dikirim secara otomatis ke email: **{target_email}**. Periksa kotak masuk atau folder spam Anda.")
+                        st.success("✅ Kode verifikasi 6-digit telah dikirim ke email Anda!")
                         st.session_state.forgot_step = 2
                     else:
-                        st.error(f"⚠️ {sent_msg}")
+                        st.warning(f"⚠️ {sent_msg} (Simulasi Kode OTP Anda: **{otp_code}**)")
+                        st.session_state.forgot_step = 2
                 else:
                     st.error("⚠️ Username dan Email tidak cocok di dalam sistem.")
 
             if st.session_state.forgot_step == 2:
                 st.markdown("---")
-                entered_otp = st.text_input("Masukkan Kode Verifikasi (OTP) dari Email", key="ent_otp")
+                entered_otp = st.text_input("Masukkan Kode Verifikasi (OTP)", key="ent_otp")
                 new_p1 = st.text_input("Password Baru", type="password", key="np1")
                 new_p2 = st.text_input("Konfirmasi Password Baru", type="password", key="np2")
                 
@@ -367,7 +352,7 @@ else:
 
     if menu == "📊 Dashboard & Analitik":
         st.title("📊 Dashboard & Analitik Performa Trading")
-        st.markdown("Analisis menyeluruh pertumbuhan modal, win rate, dan performa aset.")
+        st.markdown("Analisis menyeluruh pertumbuhan modal, win rate per strategi, dan performa aset secara visual.")
         
         if len(df_raw) > 0:
             df = df_raw.copy()
@@ -430,11 +415,11 @@ else:
             col_a, col_b = st.columns(2)
             with col_a:
                 st.subheader("📊 Performa Berdasarkan Pair")
-                pair_summary = df.groupby("Pair").agg({"P/L ($)": "sum"}).reset_index()
+                pair_summary = df.groupby("Pair")["P/L ($)"].sum().reset_index()
                 st.dataframe(pair_summary, use_container_width=True)
             with col_b:
                 st.subheader("🎯 Performa Berdasarkan Strategi")
-                strat_summary = df.groupby("Strategi").agg({"P/L ($)": "sum"}).reset_index()
+                strat_summary = df.groupby("Strategi")["P/L ($)"].sum().reset_index()
                 st.dataframe(strat_summary, use_container_width=True)
         else:
             st.info("Belum ada data trading yang dicatat. Silakan mulai mencatat melalui menu **Input Jurnal & Screenshot**.")
@@ -459,20 +444,21 @@ else:
             st.success(f"📌 **Rekomendasi Lot Ideal:** `{max(0.01, round(ideal_lot, 2))}` Lot")
 
     elif menu == "➕ Input Jurnal & Screenshot":
-        st.title("➕ Input Jurnal Trading & Screenshot")
-        st.markdown("Catat detail transaksi trading harian Anda secara lengkap dan profesional.")
+        st.title("➕ Input Jurnal Trading & Unggah Screenshot")
+        st.markdown("Catat transaksi harian Anda lengkap dengan parameter risiko, evaluasi psikologi, serta lampiran gambar bukti setup chart.")
         st.markdown("---")
         
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
             t_date = st.date_input("Tanggal Transaksi", datetime.today())
             t_pair = st.selectbox("Pair / Aset", ["XAUUSD (Gold)", "BTCUSD (Bitcoin)", "EURUSD", "GBPUSD", "USDJPY"])
             t_type = st.selectbox("Tipe Order", ["Buy", "Sell"])
+        with col2:
             t_lot = st.number_input("Lot / Size", min_value=0.01, value=0.01, step=0.01)
             t_entry = st.number_input("Harga Masuk (Entry)", value=4500.00, step=0.1, format="%.2f")
-        with col2:
-            t_exit = st.number_input("Harga Keluar (Exit)", value=4530.00, step=0.1, format="%.2f")
-            t_pl = st.number_input("Profit / Loss Bersih ($)", value=30.00, step=1.0, format="%.2f")
+            t_sl = st.number_input("Harga Stop Loss (SL)", value=4480.00, step=0.1, format="%.2f")
+        with col3:
+            t_exit = st.number_input("Harga Keluar Aktual (Exit)", value=4530.00, step=0.1, format="%.2f")
             t_strat = st.text_input("Strategi / Setup", "SMC / Price Action")
             t_note = st.selectbox("Evaluasi Emosi / Kondisi", [
                 "Disiplin & Sesuai Plan", 
@@ -488,12 +474,32 @@ else:
             file_name_val = uploaded_file.name
             file_bytes_val = uploaded_file.read()
 
+        if t_type == "Buy":
+            sl_diff = t_entry - t_sl
+            price_diff = t_exit - t_entry
+        else:
+            sl_diff = t_sl - t_entry
+            price_diff = t_entry - t_exit
+
+        risk_amount = sl_diff * t_lot * 100
+        calculated_pl = price_diff * t_lot * 100
+
         st.markdown("---")
+        info_col1, info_col2 = st.columns(2)
+        with info_col1:
+            st.warning(f"🛡️ **Potensi Risiko (Stop Loss):** -${abs(risk_amount):,.2f}")
+        with info_col2:
+            if calculated_pl > 0:
+                st.success(f"💡 **Hasil Aktual (Exit):** +${calculated_pl:,.2f} (PROFIT ✅)")
+            else:
+                st.error(f"💡 **Hasil Aktual (Exit):** -${abs(calculated_pl):,.2f} (LOSS ❌)")
+        st.markdown("---")
+            
         if st.button("💾 Simpan Jurnal & Screenshot ke Database", type="primary"):
             clean_pair = t_pair.split(" ")[0]
             new_row = {
                 "Tanggal": str(t_date), "Pair": clean_pair, "Tipe": t_type, "Lot": t_lot,
-                "Entry": t_entry, "Exit": t_exit, "P/L ($)": round(t_pl, 2),
+                "Entry": t_entry, "SL": t_sl, "Exit": t_exit, "P/L ($)": round(calculated_pl, 2),
                 "Strategi": t_strat, "Emosi / Catatan": t_note
             }
             save_trade(st.session_state.username, new_row, file_name_val, file_bytes_val)
@@ -501,7 +507,7 @@ else:
 
     elif menu == "📋 Riwayat & Kalender":
         st.title("📋 Riwayat Lengkap & Galeri Jurnal Trading")
-        st.markdown("Daftar seluruh transaksi yang pernah Anda catat, lengkap dengan opsi unduh data dan galeri chart.")
+        st.markdown("Daftar seluruh transaksi yang pernah Anda catat, lengkap dengan opsi unduh data dan galeri gambar chart.")
         
         if len(df_raw) > 0:
             display_df = df_raw.drop(columns=["id", "screenshot_name"], errors="ignore")
@@ -545,14 +551,14 @@ else:
                 * **Net P/L Bersih ($):** Total akumulasi keuntungan bersih atau kerugian bersih dari seluruh transaksi tertutup.
                 * **Total Posisi:** Jumlah total transaksi yang telah dicatat dan dieksekusi.
                 * **Win Rate (%):** Tingkat akurasi persentase kemenangan berdasarkan jumlah posisi profit berbanding total trade.
-                * **Profit Factor:** Perbandingan antara *Gross Profit* dibagi *Gross Loss*. Nilai > 1.5 mengindikasikan performa trading yang sehat.
+                * **Profit Factor:** Perbandingan antara *Gross Profit* (total profit kotor) dibagi *Gross Loss* (total loss kotor). Nilai > 1.5 mengindikasikan performa trading yang sehat.
             * **Equity Curve (Grafik Area):** Grafik interaktif yang merekam naik-turunnya akumulasi modal akun dari waktu ke waktu berdasarkan tanggal transaksi.
-            * **Performa Pair & Strategi:** Tabel ringkas yang memetakan aset atau strategi mana yang memberikan kontribusi profit terbaik.
+            * **Performa Pair & Strategi:** Tabel ringkas yang memetakan aset atau strategi mana yang memberikan kontribusi profit terbesar.
             """)
             
         with st.expander("🧮 2. Panduan Menu: Kalkulator Lot & Risiko"):
             st.markdown("""
-            * **Fungsi Utama:** Alat bantu manajemen risiko (*Risk Management*) sebelum Anda membuka posisi di market agar terhindar dari *over-leverage*.
+            * **Fungsi Utama:** Alat bantu perhitungan manajemen risiko (*Risk Management*) sebelum Anda membuka posisi di market agar terhindar dari *over-leverage*.
             * **Cara Penggunaan:**
                 1. Masukkan **Total Modal Akun ($)** yang Anda miliki saat ini.
                 2. Tentukan **Risiko Maksimal (%)** yang siap ditoleransi per transaksi (umumnya 1% - 2%).
@@ -563,8 +569,16 @@ else:
             
         with st.expander("➕ 3. Panduan Menu: Input Jurnal & Screenshot"):
             st.markdown("""
-            * **Fungsi Utama:** Formulir pencatatan harian untuk mendokumentasikan parameter transaksi secara terstruktur.
-            * **Isian Parameter:** Masukkan tanggal, pair, tipe order (Buy/Sell), ukuran lot, harga entry, harga exit, hasil profit/loss dalam dolar ($), strategi, evaluasi emosi, serta unggah file screenshot bukti chart pendukung.
+            * **Fungsi Utama:** Formulir pencatatan harian untuk mendokumentasikan parameter transaksi secara terstruktur—termasuk penetapan **Stop Loss (SL)** sebagai pengaman risiko utama—beserta evaluasi psikologisnya.
+            * **Langkah Input Data & Skenario Terkena SL:**
+                * **Tanggal & Pair:** Masukkan tanggal eksekusi dan pilih instrumen aset.
+                * **Tipe Order:** Pilih apakah posisi berupa **Buy** (Long) atau **Sell** (Short).
+                * **Lot, Entry, & SL:** Masukkan ukuran lot, harga masuk (*entry price*), dan level harga **Stop Loss (SL)**.
+                * **Penanganan Saat Terkena SL di Market (Real-Time):** Jika posisi Anda di platform trading (seperti MT5) terkena *Stop Loss* secara *real-time* di market, buka menu ini dan masukkan harga penutupan aktual pada kolom **Harga Keluar Aktual (Exit)** (biasanya nilainya persis atau sangat dekat dengan level *Stop Loss* yang Anda pasang). 
+                * **Pencatatan Kerugian:** Dengan memasukkan harga Exit tersebut, sistem akan otomatis menghitung dan menuliskan nominal kerugian bersih (berwarna merah) ke dalam database begitu Anda menekan tombol simpan, sehingga laporan kerugian Anda terekam dengan akurat di jurnal.
+                * **Strategi & Emosi:** Masukkan nama strategi teknikal dan evaluasi kondisi psikologis saat trade tersebut terjadi (misalnya: *Disiplin & Sesuai Plan* atau *Cut Loss Terlambat*).
+                * **Unggah Screenshot:** Lampirkan gambar bukti chart (PNG/JPG) untuk evaluasi teknikal jangka panjang.
+            * **Kalkulasi Otomatis:** Sistem secara instan menampilkan estimasi risiko Stop Loss serta hasil akhir transaksi (Profit/Loss) sebelum data disimpan permanen ke database.
             """)
             
         with st.expander("📋 4. Panduan Menu: Riwayat & Kalender"):
@@ -572,14 +586,14 @@ else:
             * **Fungsi Utama:** Pusat arsip data transaksi masa lalu guna keperluan evaluasi berkala dan audit performa trading.
             * **Fitur & Navigasi:**
                 * **Tabel Riwayat Transaksi:** Menampilkan seluruh daftar riwayat trade lengkap dalam format tabel bersih.
-                * **Ekspor CSV:** Tombol unduh untuk mengunduh seluruh data jurnal ke format CSV.
-                * **Galeri Screenshot Chart:** Bagian ekspansi interaktif untuk meninjau ulang gambar setup chart yang pernah diunggah.
+                * **Ekspor CSV:** Tombol unduh untuk mengunduh seluruh data jurnal ke format CSV agar dapat dibuka atau dianalisis lebih lanjut menggunakan Microsoft Excel / Google Sheets.
+                * **Galeri Screenshot Chart:** Bagian ekspansi interaktif untuk meninjau ulang gambar setup chart yang pernah diunggah pada transaksi tertentu, lengkap dengan rincian tanggal, pair, dan hasil P/L-nya.
             """)
 
         with st.expander("🛠️ 5. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):
             st.markdown("""
             * **Registrasi & Login Akun:** Setiap akun diamankan dengan enkripsi *hash* SHA-256 untuk menjaga privasi data trading Anda.
-            * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP 6-digit via email untuk proses reset password yang aman.
+            * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP 6-digit via email untuk proses reset password yang aman dan terlindungi.
             * **Validasi Password Lama:** Sistem secara otomatis mendeteksi dan menolak apabila Anda mencoba memasukkan password baru yang sama persis dengan password lama Anda.
-            * **Mode Tampilan Responsif:** Anda dapat beralih antara **Mode Desktop (Lebar)** dan **Mode Kompak (HP / Mobile)** melalui tombol pengaturan agar aplikasi tetap nyaman diakses lewat berbagai perangkat.
+            * **Mode Tampilan Responsif:** Anda dapat beralih antara **Mode Desktop (Lebar)** dan **Mode Kompak (HP / Mobile)** melalui tombol pengaturan di menu login maupun sidebar utama agar aplikasi tetap nyaman diakses lewat berbagai perangkat.
             """)

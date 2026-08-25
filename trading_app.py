@@ -214,7 +214,8 @@ if not st.session_state.logged_in:
     with col_center:
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("<h1 style='text-align: center; color: #00ADB5;'>📈 TRADING JOURNAL & RISK MTRX</h1>", unsafe_allow_html=True)
-       st.markdown("<p style='text-align: center; color: #AAAAAA; font-size: 0.9rem;'>Sistem Jurnal Trading & Manajemen Risiko.</p>", unsafe_allow_html=True)
+       st.markdown("<h1 style='text-align: center; color: #00ADB5;'>📈 TRADING JOURNAL & RISK MTRX</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #AAAAAA; font-size: 0.9rem;'>Sistem Jurnal Trading & Manajemen Risiko</p>", unsafe_allow_html=True)
         
         st.markdown("---")
         st.markdown("<p style='text-align: center; font-weight: bold; margin-bottom: 5px; font-size: 0.95rem;'>📱 Pilih Mode Tampilan Layar:</p>", unsafe_allow_html=True)

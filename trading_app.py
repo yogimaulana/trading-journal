@@ -18,38 +18,135 @@ st.set_page_config(
     layout="wide"
 )
 
-# ==================== KUSTOM CSS & MOBILE OPTIMIZED ====================
+# ==================== KUSTOM CSS & MODERN GLASSMORPHISM THEME ====================
 st.markdown("""
     <style>
-    /* Menyembunyikan Header atas secara keseluruhan (termasuk tombol Fork & GitHub) */
+    /* Mengatur latar belakang aplikasi secara keseluruhan agar bernuansa Trading Terminal */
+    .stApp {
+        background-color: #0b0f19;
+        color: #f3f4f6;
+    }
+
+    /* Menyembunyikan Header atas secara keseluruhan */
     header[data-testid="stHeader"] {
         display: none !important;
     }
     
-    /* Menyembunyikan tombol deploy / menu toolbar melayang di pojok kanan bawah/atas */
+    /* Menyembunyikan tombol deploy / menu toolbar melayang */
     .stDeployButton, footer {
         visibility: hidden !important;
     }
     
-    /* Menyembunyikan elemen toolbar tambahan Streamlit Cloud */
     [data-testid="stToolbar"] {
         display: none !important;
     }
 
-    /* Styling Tombol Umum agar konsisten & ramah sentuhan */
+    /* Card Box / Container kustom dengan efek Glassmorphism */
+    .trading-card {
+        background: rgba(17, 24, 39, 0.7);
+        border: 1px solid rgba(0, 173, 181, 0.2);
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        backdrop-filter: blur(4px);
+        margin-bottom: 1rem;
+    }
+
+    /* Styling Tombol Utama (Primary) */
     .stButton>button {
         width: 100%;
         border-radius: 8px;
-        font-weight: bold;
+        font-weight: 600;
         padding: 0.6rem 1rem;
         min-height: 44px;
+        background: linear-gradient(135deg, #00ADB5 0%, #007E85 100%);
+        color: white;
+        border: none;
+        box-shadow: 0 4px 14px rgba(0, 173, 181, 0.3);
+        transition: all 0.3s ease;
+    }
+    
+    .stButton>button:hover {
+        background: linear-gradient(135deg, #00c4ce 0%, #00939c 100%);
+        box-shadow: 0 6px 20px rgba(0, 173, 181, 0.5);
+        border: none;
+        color: white;
+    }
+
+    /* Styling Input Fields */
+    .stTextInput>div>div>input, .stNumberInput>div>div>input, .stSelectbox>div>div>div {
+        background-color: #111827 !important;
+        color: #ffffff !important;
+        border: 1px solid #374151 !important;
+        border-radius: 8px !important;
+    }
+    
+    .stTextInput>div>div>input:focus, .stNumberInput>div>div>input:focus {
+        border-color: #00ADB5 !important;
+        box-shadow: 0 0 0 1px #00ADB5 !important;
+    }
+
+    /* Landing Page Hero Card Styling */
+    .hero-container {
+        background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
+        border: 1px solid rgba(0, 173, 181, 0.3);
+        padding: 2.5rem 2rem;
+        border-radius: 16px;
+        text-align: center;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    
+    .hero-title {
+        color: #00ADB5;
+        font-size: 2.2rem;
+        font-weight: 800;
+        margin-bottom: 0.5rem;
+        letter-spacing: -0.5px;
+    }
+
+    .hero-subtitle {
+        color: #9CA3AF;
+        font-size: 1.05rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .feature-badge {
+        background-color: rgba(0, 173, 181, 0.15);
+        color: #00ADB5;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        display: inline-block;
+        margin: 4px;
+        border: 1px solid rgba(0, 173, 181, 0.4);
+    }
+
+    /* Metrik Kustom */
+    [data-testid="stMetric"] {
+        background: rgba(17, 24, 39, 0.8);
+        border: 1px solid #374151;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    [data-testid="stMetricLabel"] {
+        color: #9CA3AF !important;
+        font-weight: 500;
+    }
+    
+    [data-testid="stMetricValue"] {
+        color: #00ADB5 !important;
+        font-weight: 700;
     }
 
     /* Watermark Footer */
     .footer-watermark {
         position: fixed;
-        bottom: 5px;
-        left: 10px;
+        bottom: 8px;
+        left: 12px;
         font-size: 11px;
         color: #6c757d;
         z-index: 999;
@@ -58,7 +155,9 @@ st.markdown("""
     }
 
     .stDataFrame {
-        overflow-x: auto;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid #374151;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -67,20 +166,19 @@ st.markdown("""
 if 'view_mode' not in st.session_state:
     st.session_state.view_mode = "📱 Mode Khusus Ponsel (Mobile)"
 
-# Jika dipilih mode ponsel, terapkan CSS yang memaksimalkan layar kecil & merapikan kolom
 if st.session_state.view_mode == "📱 Mode Khusus Ponsel (Mobile)":
     st.markdown("""
         <style>
         .block-container {
             padding-top: 0.8rem !important;
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
-            padding-bottom: 3rem !important;
+            padding-left: 0.6rem !important;
+            padding-right: 0.6rem !important;
+            padding-bottom: 3.5rem !important;
         }
-        h1 { font-size: 1.25rem !important; line-height: 1.3 !important; }
-        h2 { font-size: 1.1rem !important; }
-        h3 { font-size: 1.0rem !important; }
-        [data-testid="stMetricValue"] { font-size: 1.1rem !important; }
+        h1 { font-size: 1.3rem !important; line-height: 1.3 !important; }
+        h2 { font-size: 1.15rem !important; }
+        h3 { font-size: 1.05rem !important; }
+        [data-testid="stMetricValue"] { font-size: 1.15rem !important; }
         
         [data-testid="column"] {
             width: 100% !important;
@@ -95,13 +193,13 @@ if st.session_state.view_mode == "📱 Mode Khusus Ponsel (Mobile)":
         </style>
     """, unsafe_allow_html=True)
 
-# ==================== KONFIGURASI EMAIL PENGIRIM (SMTP) ====================
+# ==================== KONFIGURASI EMAIL (SMTP) AMAN LOCALHOST ====================
 try:
     EMAIL_SENDER = st.secrets["email"]["sender"]
     EMAIL_PASSWORD = st.secrets["email"]["password"]
 except Exception:
-    EMAIL_SENDER = st.secrets.get("EMAIL_SENDER", "azumimaulana36@gmail.com")
-    EMAIL_PASSWORD = st.secrets.get("EMAIL_PASSWORD", "kfud dalb ztal kolp")
+    EMAIL_SENDER = "azumimaulana36@gmail.com"
+    EMAIL_PASSWORD = "kfud dalb ztal kolp"
 
 # ==================== DATABASE SETUP ====================
 def init_db():
@@ -154,22 +252,20 @@ def is_same_as_old_password(username, new_password):
 
 def send_email_otp(receiver_email, code):
     if EMAIL_SENDER == "email_anda@gmail.com":
-        return False, "Konfigurasi email server belum diatur oleh developer."
+        return False, "Konfigurasi email server belum diatur."
     try:
         msg = MIMEMultipart()
         msg['From'] = f"Lensjourneyy Support <{EMAIL_SENDER}>"
         msg['To'] = receiver_email
         msg['Subject'] = "Kode Verifikasi Keamanan Jurnal Trading"
-        
-        body = f"Halo,\n\nBerikut adalah kode verifikasi Anda: {code}\nKode ini berlaku selama 10 menit.\n\nSalam,\nLensjourneyy Support Team"
+        body = f"Halo,\n\nBerikut adalah kode verifikasi Anda: {code}\nBerlaku selama 10 menit.\n\nSalam,\nLensjourneyy Support"
         msg.attach(MIMEText(body, 'plain'))
-        
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(EMAIL_SENDER, EMAIL_PASSWORD)
         server.sendmail(EMAIL_SENDER, receiver_email, msg.as_string())
         server.quit()
-        return True, "Kode verifikasi berhasil dikirim ke email!"
+        return True, "Kode verifikasi berhasil dikirim!"
     except Exception as e:
         return False, f"Gagal mengirim email: {str(e)}"
 
@@ -229,17 +325,25 @@ if 'username' not in st.session_state:
 if 'forgot_step' not in st.session_state:
     st.session_state.forgot_step = 1
 
-# ==================== HALAMAN AUTHENTICATION ====================
+# ==================== HALAMAN LANDING & AUTHENTICATION ====================
 if not st.session_state.logged_in:
+    st.markdown("""
+        <div class="hero-container">
+            <div class="hero-title">📈 Professional Trading Journal & Risk MTRX</div>
+            <div class="hero-subtitle">Platform Pencatatan Jurnal & Manajemen Risiko Profesional</div>
+            <div>
+                <span class="feature-badge">🛡️ Kalkulator Anti-MC</span>
+                <span class="feature-badge">📊 Equity Curve Real-Time</span>
+                <span class="feature-badge">📸 Galeri Screenshot Chart</span>
+                <span class="feature-badge">🔒 Enkripsi Data Privat</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
     col_empty1, col_center, col_empty2 = st.columns([0.05, 1, 0.05])
     
     with col_center:
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("<h1 style='text-align: center; color: #00ADB5;'>📈 TRADING JOURNAL & RISK MTRX</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: #AAAAAA; font-size: 0.9rem;'>Sistem Jurnal Trading & Manajemen Risiko</p>", unsafe_allow_html=True)
-        
-        st.markdown("---")
-        st.markdown("<p style='text-align: center; font-weight: bold; margin-bottom: 5px; font-size: 0.95rem;'>📱 Pilih Mode Tampilan Layar:</p>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; font-weight: bold; margin-bottom: 5px; font-size: 0.95rem; color: #00ADB5;'>📱 Pilih Mode Tampilan Layar:</p>", unsafe_allow_html=True)
         
         selected_mode = st.radio(
             "Pilih Mode Layar",
@@ -253,16 +357,16 @@ if not st.session_state.logged_in:
             st.session_state.view_mode = selected_mode
             st.rerun()
             
-        st.markdown("---")
+        st.markdown("<br>", unsafe_allow_html=True)
         
-        auth_tab1, auth_tab2, auth_tab3 = st.tabs(["🔑 Masuk", "📝 Daftar", "🔄 Pemulihan"])
+        auth_tab1, auth_tab2, auth_tab3 = st.tabs(["🔑 Masuk Akun", "📝 Daftar Baru", "🔄 Pemulihan Sandi"])
         
         with auth_tab1:
             st.markdown("<br>", unsafe_allow_html=True)
             l_user = st.text_input("Username", key="l_user", placeholder="Masukkan username...")
             l_pass = st.text_input("Password", type="password", key="l_pass", placeholder="Masukkan password...")
             st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("🚀 Masuk ke Aplikasi", type="primary"):
+            if st.button("🚀 Masuk ke Workspace", type="primary"):
                 if check_user(l_user, l_pass):
                     st.session_state.logged_in = True
                     st.session_state.username = l_user
@@ -277,20 +381,19 @@ if not st.session_state.logged_in:
             r_email = st.text_input("Email Aktif", key="r_email", placeholder="nama@email.com")
             r_pass = st.text_input("Password Baru", type="password", key="r_pass", placeholder="Buat password...")
             st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("✨ Daftar Akun Sekarang"):
+            if st.button("✨ Buat Akun Gratis Sekarang"):
                 if r_user.strip() == "" or r_email.strip() == "" or r_pass.strip() == "":
-                    st.warning("⚠️ Semua kolom data harus diisi.")
+                    st.warning("⚠️ Semua kolom data wajib diisi.")
                 else:
                     success, msg = add_user(r_user, r_email, r_pass)
                     if success:
-                        st.success(f"🎉 {msg} Silakan pindah ke tab 'Masuk'.")
+                        st.success(f"🎉 {msg} Silakan pindah ke tab 'Masuk Akun'.")
                     else:
                         st.error(f"⚠️ {msg}")
 
         with auth_tab3:
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("#### Pemulihan Password via Email")
-            
             f_user = st.text_input("Username Akun Anda", key="f_user")
             f_email = st.text_input("Email Terdaftar", key="f_email")
             
@@ -304,7 +407,6 @@ if not st.session_state.logged_in:
                 if res:
                     otp_code = str(random.randint(100000, 999999))
                     expiry = (datetime.now() + timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
-                    
                     conn = sqlite3.connect('trading_journal.db')
                     c = conn.cursor()
                     c.execute('UPDATE users SET reset_code = ?, code_expiry = ? WHERE username = ?', (otp_code, expiry, f_user))
@@ -313,7 +415,7 @@ if not st.session_state.logged_in:
                     
                     sent_ok, sent_msg = send_email_otp(f_email, otp_code)
                     if sent_ok:
-                        st.success("✅ Kode verifikasi telah dikirim ke email!")
+                        st.success("✅ Kode verifikasi terkirim ke email!")
                         st.session_state.forgot_step = 2
                     else:
                         st.warning(f"⚠️ {sent_msg} (Simulasi OTP Anda: **{otp_code}**)")
@@ -348,20 +450,19 @@ if not st.session_state.logged_in:
                                     st.success("🎉 Password berhasil diubah! Silakan login.")
                                     st.session_state.forgot_step = 1
                             else:
-                                st.error("⚠️ Password tidak cocok atau kosong.")
+                                st.error("⚠️ Password tidak cocok.")
                         else:
-                            st.error("⚠️ Kode verifikasi kedaluwarsa.")
+                            st.error("⚠️ Kode kedaluwarsa.")
                     else:
-                        st.error("⚠️ Kode verifikasi salah.")
+                        st.error("⚠️ Kode OTP salah.")
 
-    st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy</div>', unsafe_allow_html=True)
+    st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy · Terminal Mode</div>', unsafe_allow_html=True)
 
 # ==================== APLIKASI UTAMA SETELAH LOGIN ====================
 else:
-    # Header Atas Pengguna & Tombol Logout / Pengaturan Ringkas
     col_top1, col_top2 = st.columns([0.7, 0.3])
     with col_top1:
-        st.markdown(f"👤 **Akun:** `{st.session_state.username}`")
+        st.markdown(f"👤 **Active Workspace:** <span style='color: #00ADB5;'>{st.session_state.username}</span>", unsafe_allow_html=True)
     with col_top2:
         if st.button("🚪 Keluar"):
             st.session_state.logged_in = False
@@ -370,7 +471,6 @@ else:
 
     st.markdown("---")
     
-    # 📱 NAVIGASI UTAMA BERBENTUK MENU PILIHAN DI ATAS (SANGAT NYAMAN DI HP & DESKTOP)
     menu = st.selectbox(
         "📌 Pilih Menu Navigasi:", 
         [
@@ -383,7 +483,6 @@ else:
         label_visibility="visible"
     )
     
-    # Pengaturan Mode Tampilan Tambahan di Bagian Bawah atau Opsional
     with st.expander("⚙️ Pengaturan Tampilan & Layar"):
         sidebar_mode = st.radio(
             "Pilih Mode Tampilan:",
@@ -459,6 +558,45 @@ else:
             )
             
             st.plotly_chart(fig, use_container_width=True)
+
+            # ==========================================
+            # 📅 FITUR BARU: PERHITUNGAN OTOMATIS PNL PER BULAN
+            # ==========================================
+            st.markdown("---")
+            st.subheader("📅 Rekapitulasi & Perhitungan Otomatis PnL per Bulan")
+            st.markdown("Analisis performa keuntungan dan kerugian bersih yang dikelompokkan secara otomatis setiap bulan.")
+
+            df["Bulan"] = df["Tanggal"].dt.to_period("M").astype(str)
+            monthly_summary = df.groupby("Bulan").agg(
+                Total_Trade=("P/L ($)", "count"),
+                Total_PnL=("P/L ($)", "sum"),
+                Win_Trade=("P/L ($)", lambda x: (x > 0).sum()),
+                Loss_Trade=("P/L ($)", lambda x: (x < 0).sum())
+            ).reset_index()
+
+            monthly_summary["Win Rate (%)"] = (monthly_summary["Win_Trade"] / monthly_summary["Total_Trade"] * 100).round(1)
+            monthly_summary.columns = ["Bulan", "Jumlah Trade", "Net P/L Bulan ($)", "Trade Profit", "Trade Loss", "Win Rate (%)"]
+
+            st.dataframe(monthly_summary, use_container_width=True)
+
+            fig_monthly = px.bar(
+                monthly_summary,
+                x="Bulan",
+                y="Net P/L Bulan ($)",
+                text="Net P/L Bulan ($)",
+                title="<b>Perbandingan Net P/L Bulanan</b>",
+                labels={"Net P/L Bulan ($)": "Net P/L ($)", "Bulan": "Bulan Transaksi"}
+            )
+            fig_monthly.update_traces(marker_color="#00ADB5", texttemplate='$%{text:,.2f}', textposition='outside')
+            fig_monthly.update_layout(
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#CCCCCC", family="sans-serif"),
+                xaxis=dict(showgrid=False),
+                yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.08)"),
+                margin=dict(l=20, r=20, t=40, b=20)
+            )
+            st.plotly_chart(fig_monthly, use_container_width=True)
             
             st.markdown("---")
             col_a, col_b = st.columns(2)
@@ -596,6 +734,7 @@ else:
         with st.expander("📊 1. Panduan Menu: Dashboard & Analitik"):
             st.markdown("""
             * **Fungsi Utama:** Menyediakan ringkasan performa trading secara visual dan menyeluruh bagi akun Anda.
+            * **Perhitungan Otomatis PnL per Bulan:** Sistem secara otomatis mengelompokkan data transaksi berdasarkan bulan (`YYYY-MM`) untuk menghitung total net PnL, jumlah trade, win/loss trade, serta tingkat win rate bulanan beserta grafik batangnya.
             * **Metrik Utama (KPI):**
                 * **Net P/L Bersih ($):** Total akumulasi keuntungan bersih atau kerugian bersih dari seluruh transaksi tertutup.
                 * **Total Posisi:** Jumlah total transaksi yang telah dicatat dan dieksekusi.
@@ -648,3 +787,35 @@ else:
             """)
 
     st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy</div>', unsafe_allow_html=True)
+    
+    # ==========================================
+# ENDPOINT DOWNLOAD DATABASE TERPROTEKSI
+# ==========================================
+import os
+
+# Mengambil parameter dari URL (misalnya: ?download_db=TOKEN_ANDA)
+query_params = st.query_params
+
+if "download_db" in query_params:
+    # Tentukan token rahasia Anda di sini (harus sama persis dengan yang ada di admin_app.py)
+    RAHASIA_TOKEN_SAYA = "lens378" 
+    
+    # Ambil nilai token dari URL
+    token_masuk = query_params.get("download_db")
+    
+    if token_masuk == RAHASIA_TOKEN_SAYA:
+        db_path = "trading_journal.db"
+        if os.path.exists(db_path):
+            with open(db_path, "rb") as f:
+                st.download_button(
+                    label="Download Database File",
+                    data=f,
+                    file_name="trading_journal.db",
+                    mime="application/octet-stream"
+                )
+            st.stop() # Menghentikan render aplikasi utama agar yang tampil hanya tombol download
+        else:
+            st.error("File database lokal belum tersedia di server.")
+    else:
+        st.error("⚠️ Akses Ditolak: Token Rahasia Salah atau Tidak Valid!")
+        st.stop()

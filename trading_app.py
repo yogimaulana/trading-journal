@@ -284,134 +284,188 @@ if 'username' not in st.session_state:
     st.session_state.username = ""
 if 'forgot_step' not in st.session_state:
     st.session_state.forgot_step = 1
+if 'show_auth_screen' not in st.session_state:
+    st.session_state.show_auth_screen = False
 
 # ==================== HALAMAN LANDING & AUTHENTICATION ====================
 if not st.session_state.logged_in:
-    st.markdown("""
-        <div class="hero-container">
-            <div class="hero-title">📈 Professional Trading Journal & Risk MTRX</div>
-            <div class="hero-subtitle">Platform Pencatatan Jurnal & Manajemen Risiko Profesional</div>
-            <div>
-                <span class="feature-badge">🛡️ Kalkulator Anti-MC</span>
-                <span class="feature-badge">📊 Equity Curve Real-Time</span>
-                <span class="feature-badge">📸 Galeri Screenshot Chart</span>
-                <span class="feature-badge">🔒 Enkripsi Data Privat (Cloud)</span>
+    if not st.session_state.show_auth_screen:
+        # ==================== LANDING PAGE PUBLIK ====================
+        st.markdown("""
+            <div class="hero-container" style="padding: 3rem 2rem;">
+                <h1 style="color: #00ADB5; font-size: 2.4rem; font-weight: 800; margin-bottom: 0.5rem;">📈 Professional Trading Journal & Risk MTRX</h1>
+                <p style="color: #9CA3AF; font-size: 1.15rem; margin-bottom: 1.5rem;">
+                    Platform Pencatatan Jurnal & Manajemen Risiko Profesional untuk Trader Serius.
+                </p>
+                <div>
+                    <span class="feature-badge">🛡️ Kalkulator Anti-MC</span>
+                    <span class="feature-badge">📊 Equity Curve Real-Time</span>
+                    <span class="feature-badge">📸 Galeri Screenshot Chart</span>
+                    <span class="feature-badge">🔒 Enkripsi Data Privat (Cloud)</span>
+                </div>
             </div>
-        </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-    col_empty1, col_center, col_empty2 = st.columns([0.05, 1, 0.05])
+        col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+        with col_l2:
+            if st.button("🚀 Masuk / Buat Akun Sekarang", type="primary", use_container_width=True):
+                st.session_state.show_auth_screen = True
+                st.rerun()
+
+        st.markdown("---")
+        st.subheader("✨ Kenapa Harus Menggunakan Jurnal Ini?")
+        
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            st.markdown("""
+            * **🧮 Kalkulator Lot & Risiko Presisi**
+              Hitung ukuran posisi dan batas risiko otomatis untuk mencegah *over-leverage* dan akun terkena *Margin Call*.
+            * **📊 Dashboard & Equity Curve**
+              Pantau grafik pertumbuhan modal secara visual, rekapitulasi PnL bulanan, dan tingkat *win rate* secara *real-time*.
+            """)
+        with col_f2:
+            st.markdown("""
+            * **📸 Galeri Screenshot Chart**
+              Simpan rekam jejak setup *entry* dan *exit* beserta gambar chart langsung ke dalam database cloud.
+            * **🔒 Privasi & Keamanan Terjaga**
+              Data transaksi dan riwayat trading setiap pengguna terisolasi dengan aman di dalam akun masing-masing.
+            """)
+
+        st.markdown("---")
+        st.markdown("<p style='text-align: center; color: #6c757d; font-size: 0.85rem;'>⚡ Powered by Lensjourneyy</p>", unsafe_allow_html=True)
     
-    with col_center:
-        st.markdown("<p style='text-align: center; font-weight: bold; margin-bottom: 5px; font-size: 0.95rem; color: #00ADB5;'>📱 Pilih Mode Tampilan Layar:</p>", unsafe_allow_html=True)
-        
-        selected_mode = st.radio(
-            "Pilih Mode Layar",
-            ["📱 Mode Khusus Ponsel (Mobile)", "🖥️ Mode Desktop (Lebar)"],
-            index=0 if st.session_state.view_mode == "📱 Mode Khusus Ponsel (Mobile)" else 1,
-            horizontal=True,
-            label_visibility="collapsed"
-        )
-        
-        if selected_mode != st.session_state.view_mode:
-            st.session_state.view_mode = selected_mode
-            st.rerun()
-            
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        auth_tab1, auth_tab2, auth_tab3 = st.tabs(["🔑 Masuk Akun", "📝 Daftar Baru", "🔄 Pemulihan Sandi"])
-        
-        with auth_tab1:
-            st.markdown("<br>", unsafe_allow_html=True)
-            l_user = st.text_input("Username", key="l_user", placeholder="Masukkan username...")
-            l_pass = st.text_input("Password", type="password", key="l_pass", placeholder="Masukkan password...")
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("🚀 Masuk ke Workspace", type="primary"):
-                if check_user(l_user, l_pass):
-                    st.session_state.logged_in = True
-                    st.session_state.username = l_user
-                    st.success(f"Berhasil masuk! Selamat datang, {l_user}.")
-                    st.rerun()
-                else:
-                    st.error("⚠️ Username atau password salah.")
-                    
-        with auth_tab2:
-            st.markdown("<br>", unsafe_allow_html=True)
-            r_user = st.text_input("Username Baru", key="r_user", placeholder="Pilih username unik...")
-            r_email = st.text_input("Email Kontak (Opsional)", key="r_email", placeholder="nama@email.com")
-            r_pass = st.text_input("Password Baru", type="password", key="r_pass", placeholder="Buat password...")
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("✨ Buat Akun Gratis Sekarang"):
-                if r_user.strip() == "" or r_pass.strip() == "":
-                    st.warning("⚠️ Username dan Password wajib diisi.")
-                else:
-                    success, msg = add_user(r_user, r_email, r_pass)
-                    if success:
-                        st.success(f"🎉 {msg} Silakan pindah ke tab 'Masuk Akun'.")
-                    else:
-                        st.error(f"⚠️ {msg}")
+    else:
+        # ==================== HALAMAN AUTH (LOGIN / REGISTER / FORGOT) ====================
+        st.markdown("""
+            <div class="hero-container">
+                <div class="hero-title">📈 Professional Trading Journal & Risk MTRX</div>
+                <div class="hero-subtitle">Platform Pencatatan Jurnal & Manajemen Risiko Profesional</div>
+                <div>
+                    <span class="feature-badge">🛡️ Kalkulator Anti-MC</span>
+                    <span class="feature-badge">📊 Equity Curve Real-Time</span>
+                    <span class="feature-badge">📸 Galeri Screenshot Chart</span>
+                    <span class="feature-badge">🔒 Enkripsi Data Privat (Cloud)</span>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
 
-        with auth_tab3:
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("#### Pemulihan Password")
-            f_user = st.text_input("Username Akun Anda", key="f_user")
-            f_email = st.text_input("Email Tujuan Pengiriman OTP", key="f_email")
-            
-            if st.button("📤 Kirim Kode OTP"):
-                if f_user.strip() == "" or f_email.strip() == "":
-                    st.warning("⚠️ Masukkan username dan email tujuan.")
-                else:
-                    otp_code = str(random.randint(100000, 999999))
-                    expiry = (datetime.now() + timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
-                    try:
-                        supabase.table("users").update({
-                            "reset_code": otp_code,
-                            "code_expiry": expiry
-                        }).eq("username", f_user).execute()
-                    except Exception:
-                        pass
-                    
-                    sent_ok, sent_msg = send_email_otp(f_email, otp_code)
-                    if sent_ok:
-                        st.success("✅ Kode verifikasi terkirim ke email!")
-                        st.session_state.forgot_step = 2
-                    else:
-                        st.warning(f"⚠️ {sent_msg} (Simulasi OTP Anda: **{otp_code}**)")
-                        st.session_state.forgot_step = 2
-
-            if st.session_state.forgot_step == 2:
-                st.markdown("---")
-                entered_otp = st.text_input("Masukkan Kode OTP 6-Digit", key="ent_otp")
-                new_p1 = st.text_input("Password Baru", type="password", key="np1")
-                new_p2 = st.text_input("Konfirmasi Password Baru", type="password", key="np2")
+        col_empty1, col_center, col_empty2 = st.columns([0.05, 1, 0.05])
+        
+        with col_center:
+            if st.button("⬅️ Kembali ke Beranda"):
+                st.session_state.show_auth_screen = False
+                st.rerun()
                 
-                if st.button("🔒 Konfirmasi Ganti Password"):
-                    try:
-                        row_res = supabase.table("users").select("reset_code", "code_expiry").eq("username", f_user).execute()
-                        if row_res.data:
-                            row = row_res.data[0]
-                            if row.get("reset_code") == entered_otp:
-                                if new_p1 == new_p2 and len(new_p1) > 0:
-                                    if is_same_as_old_password(f_user, new_p1):
-                                        st.error("⚠️ Password baru tidak boleh sama dengan password lama!")
-                                    else:
-                                        supabase.table("users").update({
-                                            "password": new_p1,
-                                            "reset_code": None,
-                                            "code_expiry": None
-                                        }).eq("username", f_user).execute()
-                                        st.success("🎉 Password berhasil diubah! Silakan login.")
-                                        st.session_state.forgot_step = 1
-                                else:
-                                    st.error("⚠️ Konfirmasi password tidak cocok.")
-                            else:
-                                st.error("⚠️ Kode OTP salah.")
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align: center; font-weight: bold; margin-bottom: 5px; font-size: 0.95rem; color: #00ADB5;'>📱 Pilih Mode Tampilan Layar:</p>", unsafe_allow_html=True)
+            
+            selected_mode = st.radio(
+                "Pilih Mode Layar",
+                ["📱 Mode Khusus Ponsel (Mobile)", "🖥️ Mode Desktop (Lebar)"],
+                index=0 if st.session_state.view_mode == "📱 Mode Khusus Ponsel (Mobile)" else 1,
+                horizontal=True,
+                label_visibility="collapsed"
+            )
+            
+            if selected_mode != st.session_state.view_mode:
+                st.session_state.view_mode = selected_mode
+                st.rerun()
+                
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            auth_tab1, auth_tab2, auth_tab3 = st.tabs(["🔑 Masuk Akun", "📝 Daftar Baru", "🔄 Pemulihan Sandi"])
+            
+            with auth_tab1:
+                st.markdown("<br>", unsafe_allow_html=True)
+                l_user = st.text_input("Username", key="l_user", placeholder="Masukkan username...")
+                l_pass = st.text_input("Password", type="password", key="l_pass", placeholder="Masukkan password...")
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("🚀 Masuk ke Workspace", type="primary"):
+                    if check_user(l_user, l_pass):
+                        st.session_state.logged_in = True
+                        st.session_state.username = l_user
+                        st.success(f"Berhasil masuk! Selamat datang, {l_user}.")
+                        st.rerun()
+                    else:
+                        st.error("⚠️ Username atau password salah.")
+                        
+            with auth_tab2:
+                st.markdown("<br>", unsafe_allow_html=True)
+                r_user = st.text_input("Username Baru", key="r_user", placeholder="Pilih username unik...")
+                r_email = st.text_input("Email Kontak (Opsional)", key="r_email", placeholder="nama@email.com")
+                r_pass = st.text_input("Password Baru", type="password", key="r_pass", placeholder="Buat password...")
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("✨ Buat Akun Gratis Sekarang"):
+                    if r_user.strip() == "" or r_pass.strip() == "":
+                        st.warning("⚠️ Username dan Password wajib diisi.")
+                    else:
+                        success, msg = add_user(r_user, r_email, r_pass)
+                        if success:
+                            st.success(f"🎉 {msg} Silakan pindah ke tab 'Masuk Akun'.")
                         else:
-                            st.error("⚠️ User tidak ditemukan.")
-                    except Exception as e:
-                        st.error(f"Gagal memperbarui password: {e}")
+                            st.error(f"⚠️ {msg}")
 
-    st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy · Terminal Mode</div>', unsafe_allow_html=True)
+            with auth_tab3:
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("#### Pemulihan Password")
+                f_user = st.text_input("Username Akun Anda", key="f_user")
+                f_email = st.text_input("Email Tujuan Pengiriman OTP", key="f_email")
+                
+                if st.button("📤 Kirim Kode OTP"):
+                    if f_user.strip() == "" or f_email.strip() == "":
+                        st.warning("⚠️ Masukkan username dan email tujuan.")
+                    else:
+                        otp_code = str(random.randint(100000, 999999))
+                        expiry = (datetime.now() + timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
+                        try:
+                            supabase.table("users").update({
+                                "reset_code": otp_code,
+                                "code_expiry": expiry
+                            }).eq("username", f_user).execute()
+                        except Exception:
+                            pass
+                        
+                        sent_ok, sent_msg = send_email_otp(f_email, otp_code)
+                        if sent_ok:
+                            st.success("✅ Kode verifikasi terkirim ke email!")
+                            st.session_state.forgot_step = 2
+                        else:
+                            st.warning(f"⚠️ {sent_msg} (Simulasi OTP Anda: **{otp_code}**)")
+                            st.session_state.forgot_step = 2
+
+                if st.session_state.forgot_step == 2:
+                    st.markdown("---")
+                    entered_otp = st.text_input("Masukkan Kode OTP 6-Digit", key="ent_otp")
+                    new_p1 = st.text_input("Password Baru", type="password", key="np1")
+                    new_p2 = st.text_input("Konfirmasi Password Baru", type="password", key="np2")
+                    
+                    if st.button("🔒 Konfirmasi Ganti Password"):
+                        try:
+                            row_res = supabase.table("users").select("reset_code", "code_expiry").eq("username", f_user).execute()
+                            if row_res.data:
+                                row = row_res.data[0]
+                                if row.get("reset_code") == entered_otp:
+                                    if new_p1 == new_p2 and len(new_p1) > 0:
+                                        if is_same_as_old_password(f_user, new_p1):
+                                            st.error("⚠️ Password baru tidak boleh sama dengan password lama!")
+                                        else:
+                                            supabase.table("users").update({
+                                                "password": new_p1,
+                                                "reset_code": None,
+                                                "code_expiry": None
+                                            }).eq("username", f_user).execute()
+                                            st.success("🎉 Password berhasil diubah! Silakan login.")
+                                            st.session_state.forgot_step = 1
+                                    else:
+                                        st.error("⚠️ Konfirmasi password tidak cocok.")
+                                else:
+                                    st.error("⚠️ Kode OTP salah.")
+                            else:
+                                st.error("⚠️ User tidak ditemukan.")
+                        except Exception as e:
+                            st.error(f"Gagal memperbarui password: {e}")
+
+        st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy · Terminal Mode</div>', unsafe_allow_html=True)
 
 # ==================== APLIKASI UTAMA SETELAH LOGIN ====================
 else:
@@ -422,6 +476,7 @@ else:
         if st.button("🚪 Keluar"):
             st.session_state.logged_in = False
             st.session_state.username = ""
+            st.session_state.show_auth_screen = False
             st.rerun()
 
     st.markdown("---")

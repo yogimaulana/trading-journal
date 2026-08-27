@@ -8,14 +8,13 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import plotly.express as px
+import os
+from github import Github
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & TAMPILAN PROFESIONAL
+# 0. MODE MAINTENANCE (NYALAKAN/MATIKAN)
 # ==========================================
-# ==========================================
-# MODE MAINTENANCE (NYALAKAN/MATIKAN)
-# ==========================================
-IS_MAINTENANCE = True  # Ubah menjadi False jika sudah selesai perbaikan
+IS_MAINTENANCE = False  # Ubah menjadi True jika ingin mengaktifkan mode pemeliharaan
 
 if IS_MAINTENANCE:
     st.markdown("""
@@ -28,6 +27,10 @@ if IS_MAINTENANCE:
         </div>
     """, unsafe_allow_html=True)
     st.stop()  # Menghentikan seluruh proses aplikasi agar menu lain tidak bisa diakses
+
+# ==========================================
+# 1. KONFIGURASI HALAMAN & TAMPILAN PROFESIONAL
+# ==========================================
 st.set_page_config(
     page_title="Lensjourneyy · Professional Trading Journal & Risk MTRX",
     page_icon="📈",
@@ -209,13 +212,46 @@ if st.session_state.view_mode == "📱 Mode Khusus Ponsel (Mobile)":
         </style>
     """, unsafe_allow_html=True)
 
-# ==================== KONFIGURASI EMAIL (SMTP) AMAN LOCALHOST ====================
+# ==================== KONFIGURASI EMAIL (SMTP) AMAN ====================
 try:
     EMAIL_SENDER = st.secrets["email"]["sender"]
     EMAIL_PASSWORD = st.secrets["email"]["password"]
 except Exception:
     EMAIL_SENDER = "azumimaulana36@gmail.com"
     EMAIL_PASSWORD = "kfud dalb ztal kolp"
+
+# ==================== FUNGSI AUTO-SYNC KE GITHUB ====================
+def sync_db_to_github():
+    try:
+        github_token = st.secrets["github"]["token"]
+        repo_name = st.secrets["github"]["repo_name"]
+        
+        g = Github(github_token)
+        repo = g.get_repo(repo_name)
+        
+        with open("trading_journal.db", "rb") as f:
+            content = f.read()
+            
+        try:
+            file_in_github = repo.get_contents("trading_journal.db")
+            repo.update_file(
+                path="trading_journal.db",
+                message="Auto-sync: Update trading_journal.db from app action",
+                content=content,
+                sha=file_in_github.sha,
+                branch="main"
+            )
+        except Exception:
+            repo.create_file(
+                path="trading_journal.db",
+                message="Auto-sync: Create trading_journal.db",
+                content=content,
+                branch="main"
+            )
+        return True
+    except Exception as e:
+        print(f"Gagal sinkronisasi ke GitHub: {e}")
+        return False
 
 # ==================== DATABASE SETUP ====================
 def init_db():
@@ -302,6 +338,10 @@ def add_user(username, email, password):
         c.execute('INSERT INTO users(username, email, password) VALUES (?, ?, ?)', (username, email, make_hash(password)))
         conn.commit()
         conn.close()
+        
+        # Panggil Auto-Sync ke GitHub setiap ada user baru daftar
+        sync_db_to_github()
+        
         return True, "Akun berhasil didaftarkan."
     except sqlite3.IntegrityError:
         conn.close()
@@ -332,6 +372,9 @@ def save_trade(username, row_data, file_name, file_bytes):
     ))
     conn.commit()
     conn.close()
+    
+    # Panggil Auto-Sync ke GitHub setiap ada trade baru disimpan
+    sync_db_to_github()
 
 # ==================== SESSION STATE LOGIN ====================
 if 'logged_in' not in st.session_state:
@@ -575,9 +618,6 @@ else:
             
             st.plotly_chart(fig, use_container_width=True)
 
-            # ==========================================
-            # 📅 FITUR BARU: PERHITUNGAN OTOMATIS PNL PER BULAN
-            # ==========================================
             st.markdown("---")
             st.subheader("📅 Rekapitulasi & Perhitungan Otomatis PnL per Bulan")
             st.markdown("Analisis performa keuntungan dan kerugian bersih yang dikelompokkan secara otomatis setiap bulan.")
@@ -762,7 +802,7 @@ else:
             
         with st.expander("🧮 2. Panduan Menu: Kalkulator Lot & Risiko"):
             st.markdown("""
-            * **Fungsi Utama:** Alat bantu perhitungan manajemen risiko (*Risk Management*) sebelum Anda membuka posisi di market agar terhindar dari *over-leverage*.
+            * **Fungsi Utama:** Alat bantu perhitungan manajemen risiko sebelum Anda membuka posisi di market agar terhindar dari *over-leverage*.
             * **Cara Penggunaan:**
                 1. Masukkan **Total Modal Akun ($)** yang Anda miliki saat ini.
                 2. Tentukan **Risiko Maksimal (%)** yang siap ditoleransi per transaksi (umumnya 1% - 2%).
@@ -773,16 +813,16 @@ else:
             
         with st.expander("➕ 3. Panduan Menu: Input Jurnal & Screenshot"):
             st.markdown("""
-            * **Fungsi Utama:** Formulir pencatatan harian untuk mendokumentasikan parameter transaksi secara terstruktur—termasuk penetapan **Stop Loss (SL)** sebagai pengaman risiko utama—beserta evaluasi psikologisnya.
+            * **Fungsi Utama:** Formulir pencatatan harian untuk mendokumentasikan parameter transaksi secara terstruktur—termasuk penetapan **Stop Loss (SL)**—beserta evaluasi psikologisnya.
             * **Langkah Input Data & Skenario Terkena SL:**
                 * **Tanggal & Pair:** Masukkan tanggal eksekusi dan pilih instrumen aset.
                 * **Tipe Order:** Pilih apakah posisi berupa **Buy** (Long) atau **Sell** (Short).
                 * **Lot, Entry, & SL:** Masukkan ukuran lot, harga masuk (*entry price*), dan level harga **Stop Loss (SL)**.
-                * **Penanganan Saat Terkena SL di Market (Real-Time):** Jika posisi Anda di platform trading (seperti MT5) terkena *Stop Loss* secara *real-time* di market, buka menu ini dan masukkan harga penutupan aktual pada kolom **Harga Keluar Aktual (Exit)** (biasanya nilainya persis atau sangat dekat dengan level *Stop Loss* yang Anda pasang). 
-                * **Pencatatan Kerugian:** Dengan memasukkan harga Exit tersebut, sistem akan otomatis menghitung dan menuliskan nominal kerugian bersih (berwarna merah) ke dalam database begitu Anda menekan tombol simpan, sehingga laporan kerugian Anda terekam dengan akurat di jurnal.
-                * **Strategi & Emosi:** Masukkan nama strategi teknikal dan evaluasi kondisi psikologis saat trade tersebut terjadi (misalnya: *Disiplin & Sesuai Plan* atau *Cut Loss Terlambat*).
-                * **Unggah Screenshot:** Lampirkan gambar bukti chart (PNG/JPG) untuk evaluasi teknikal jangka panjang.
-            * **Kalkulasi Otomatis:** Sistem secara instan menampilkan estimasi risiko Stop Loss serta hasil akhir transaksi (Profit/Loss) sebelum data disimpan permanen ke database.
+                * **Penanganan Saat Terkena SL di Market (Real-Time):** Jika posisi Anda di platform trading (seperti MT5) terkena *Stop Loss* secara *real-time* di market, buka menu ini dan masukkan harga penutupan aktual pada kolom **Harga Keluar Aktual (Exit)**. 
+                * **Pencatatan Kerugian:** Dengan memasukkan harga Exit tersebut, sistem akan otomatis menghitung dan menuliskan nominal kerugian bersih (berwarna merah) ke dalam database begitu Anda menekan tombol simpan.
+                * **Strategi & Emosi:** Masukkan nama strategi teknikal dan evaluasi kondisi psikologis saat trade tersebut terjadi.
+                * **Unggah Screenshot:** Lampirkan gambar bukti chart (PNG/JPG) untuk evaluasi jangka panjang.
+            * **Kalkulasi Otomatis:** Sistem secara instan menampilkan estimasi risiko Stop Loss serta hasil akhir transaksi sebelum data disimpan permanen ke database dan otomatis disinkronkan ke GitHub.
             """)
             
         with st.expander("📋 4. Panduan Menu: Riwayat & Kalender"):
@@ -790,33 +830,27 @@ else:
             * **Fungsi Utama:** Pusat arsip data transaksi masa lalu guna keperluan evaluasi berkala dan audit performa trading.
             * **Fitur & Navigasi:**
                 * **Tabel Riwayat Transaksi:** Menampilkan seluruh daftar riwayat trade lengkap dalam format tabel bersih.
-                * **Ekspor CSV:** Tombol unduh untuk mengunduh seluruh data jurnal ke format CSV agar dapat dibuka atau dianalisis lebih lanjut menggunakan Microsoft Excel / Google Sheets.
-                * **Galeri Screenshot Chart:** Bagian ekspansi interaktif untuk meninjau ulang gambar setup chart yang pernah diunggah pada transaksi tertentu, lengkap dengan rincian tanggal, pair, dan hasil P/L-nya.
+                * **Ekspor CSV:** Tombol unduh untuk mengunduh seluruh data jurnal ke format CSV.
+                * **Galeri Screenshot Chart:** Bagian ekspansi interaktif untuk meninjau ulang gambar setup chart yang pernah diunggah.
             """)
 
         with st.expander("🛠️ 5. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):
             st.markdown("""
-            * **Registrasi & Login Akun:** Setiap akun diamankan dengan enkripsi *hash* SHA-256 untuk menjaga privasi data trading Anda.
-            * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP 6-digit via email untuk proses reset password yang aman dan terlindungi.
-            * **Validasi Password Lama:** Sistem secara otomatis mendeteksi dan menolak apabila Anda mencoba memasukkan password baru yang sama persis dengan password lama Anda.
-            * **Mode Tampilan Responsif:** Anda dapat beralih antara **Mode Desktop (Lebar)** dan **Mode Kompak (HP / Mobile)** melalui pengaturan agar aplikasi tetap nyaman diakses lewat berbagai perangkat.
+            * **Registrasi & Login Akun:** Setiap akun diamankan dengan enkripsi *hash* SHA-256 untuk menjaga privasi data trading.
+            * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP 6-digit via email.
+            * **Validasi Password Lama:** Sistem secara otomatis mendeteksi dan menolak apabila Anda mencoba memasukkan password baru yang sama persis dengan password lama.
+            * **Mode Tampilan Responsif:** Anda dapat beralih antara **Mode Desktop (Lebar)** dan **Mode Kompak (HP / Mobile)**.
             """)
 
     st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy</div>', unsafe_allow_html=True)
     
-    # ==========================================
+# ==========================================
 # ENDPOINT DOWNLOAD DATABASE TERPROTEKSI
 # ==========================================
-import os
-
-# Mengambil parameter dari URL (misalnya: ?download_db=TOKEN_ANDA)
 query_params = st.query_params
 
 if "download_db" in query_params:
-    # Tentukan token rahasia Anda di sini (harus sama persis dengan yang ada di admin_app.py)
     RAHASIA_TOKEN_SAYA = "lens378" 
-    
-    # Ambil nilai token dari URL
     token_masuk = query_params.get("download_db")
     
     if token_masuk == RAHASIA_TOKEN_SAYA:
@@ -829,7 +863,7 @@ if "download_db" in query_params:
                     file_name="trading_journal.db",
                     mime="application/octet-stream"
                 )
-            st.stop() # Menghentikan render aplikasi utama agar yang tampil hanya tombol download
+            st.stop() 
         else:
             st.error("File database lokal belum tersedia di server.")
     else:

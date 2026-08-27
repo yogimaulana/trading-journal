@@ -9,7 +9,7 @@ import plotly.express as px
 from supabase import create_client, Client
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & TAMPILAN PROFESIONAL
+# 1. KONFIGURASI HALAMAN & TAMPILAN RESPONSIF OTOMATIS
 # ==========================================
 st.set_page_config(
     page_title="Lensjourneyy · Professional Trading Journal & Risk MTRX",
@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# ==================== KUSTOM CSS & MODERN GLASSMORPHISM THEME + BACKGROUND ANIMATION ====================
+# ==================== KUSTOM CSS & RESPONSIF OTOMATIS (HP & PC) ====================
 st.markdown("""
     <style>
     .stApp {
@@ -38,7 +38,7 @@ st.markdown("""
         display: none !important;
     }
     
-    /* Animasi Halus & Modern untuk Landing Page */
+    /* Animasi & Efek Visual Modern */
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(15px); }
         to { opacity: 1; transform: translateY(0); }
@@ -59,7 +59,6 @@ st.markdown("""
         100% { transform: scale(1); opacity: 0.3; }
     }
 
-    /* Elemen Latar Belakang Animasi Partikel/Cahaya */
     .bg-animation-container {
         position: fixed;
         top: 0;
@@ -70,7 +69,7 @@ st.markdown("""
         z-index: -99;
         pointer-events: none;
     }
-    . glowing-orb {
+    .glowing-orb {
         position: absolute;
         border-radius: 50%;
         filter: blur(80px);
@@ -139,6 +138,7 @@ st.markdown("""
         color: #ffffff !important;
         border: 1px solid #374151 !important;
         border-radius: 8px !important;
+        font-size: 16px !important; /* Mencegah auto-zoom di perangkat iOS */
     }
     .hero-container {
         background: linear-gradient(135deg, rgba(17, 24, 39, 0.85) 0%, rgba(31, 41, 55, 0.85) 100%);
@@ -208,6 +208,42 @@ st.markdown("""
         border-radius: 8px;
         overflow: hidden;
         border: 1px solid #374151;
+        width: 100%;
+    }
+
+    /* ==========================================
+       MEDIA QUERY OTOMATIS KHUSUS LAYAR HP (MOBILE)
+       ========================================== */
+    @media (max-width: 768px) {
+        .block-container {
+            padding-top: 1rem !important;
+            padding-left: 0.8rem !important;
+            padding-right: 0.8rem !important;
+            padding-bottom: 4rem !important;
+        }
+        .hero-title {
+            font-size: 1.5rem !important;
+            line-height: 1.3 !important;
+        }
+        .hero-subtitle {
+            font-size: 0.95rem !important;
+        }
+        .hero-container {
+            padding: 1.5rem 1rem;
+        }
+        h1 { font-size: 1.35rem !important; }
+        h2 { font-size: 1.2rem !important; }
+        h3 { font-size: 1.05rem !important; }
+        [data-testid="stMetricValue"] { 
+            font-size: 1.15rem !important; 
+        }
+        /* Otomatis jadikan elemen kolom vertikal (stack) di HP agar tidak gepeng */
+        [data-testid="column"] {
+            width: 100% !important;
+            flex: 100% !important;
+            min-width: 100% !important;
+            margin-bottom: 0.6rem;
+        }
     }
     </style>
 
@@ -217,35 +253,6 @@ st.markdown("""
         <div class="glowing-orb orb-2"></div>
     </div>
 """, unsafe_allow_html=True)
-
-# ==================== PENGATURAN MODE TAMPILAN ====================
-if 'view_mode' not in st.session_state:
-    st.session_state.view_mode = "📱 Mode Khusus Ponsel (Mobile)"
-
-if st.session_state.view_mode == "📱 Mode Khusus Ponsel (Mobile)":
-    st.markdown("""
-        <style>
-        .block-container {
-            padding-top: 0.8rem !important;
-            padding-left: 0.6rem !important;
-            padding-right: 0.6rem !important;
-            padding-bottom: 3.5rem !important;
-        }
-        h1 { font-size: 1.3rem !important; line-height: 1.3 !important; }
-        h2 { font-size: 1.15rem !important; }
-        h3 { font-size: 1.05rem !important; }
-        [data-testid="stMetricValue"] { font-size: 1.15rem !important; }
-        [data-testid="column"] {
-            width: 100% !important;
-            flex: 100% !important;
-            min-width: 100% !important;
-            margin-bottom: 0.5rem;
-        }
-        input, select, textarea {
-            font-size: 16px !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
 
 # ==================== KONFIGURASI EMAIL (SMTP) ====================
 try:
@@ -377,7 +384,7 @@ if 'show_auth_screen' not in st.session_state:
 # ==================== HALAMAN LANDING & AUTHENTICATION ====================
 if not st.session_state.logged_in:
     if not st.session_state.show_auth_screen:
-        # ==================== LANDING PAGE PUBLIK DENGAN ANIMASI INTERAKTIF ====================
+        # ==================== LANDING PAGE PUBLIK ====================
         st.markdown("""
             <div class="hero-container animated-hero">
                 <div class="floating-badge" style="font-size: 3rem; margin-bottom: 10px;">📈</div>
@@ -435,7 +442,7 @@ if not st.session_state.logged_in:
         st.markdown("""
             <div class="hero-container animated-hero" style="padding: 2rem 1.5rem;">
                 <h1 class="hero-title" style="font-size: 1.8rem;">📈 Akses Workspace Trading</h1>
-                <p class="hero-subtitle" style="margin-bottom: 1rem;">Kelola jurnal, pantau risiko, dan evaluasi performa trading Anda.</p>
+                <p class="hero-subtitle" style="margin-bottom: 1rem;">Kelola jurnal, pantau risiko, dan evaluasi performa trading Anda secara mulus di HP maupun PC.</p>
                 <div>
                     <span class="feature-badge">🛡️ Kalkulator Anti-MC</span>
                     <span class="feature-badge">📊 Equity Curve</span>
@@ -451,21 +458,6 @@ if not st.session_state.logged_in:
                 st.rerun()
                 
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align: center; font-weight: bold; margin-bottom: 5px; font-size: 0.95rem; color: #00ADB5;'>📱 Pilih Mode Tampilan Layar:</p>", unsafe_allow_html=True)
-            
-            selected_mode = st.radio(
-                "Pilih Mode Layar",
-                ["📱 Mode Khusus Ponsel (Mobile)", "🖥️ Mode Desktop (Lebar)"],
-                index=0 if st.session_state.view_mode == "📱 Mode Khusus Ponsel (Mobile)" else 1,
-                horizontal=True,
-                label_visibility="collapsed"
-            )
-            
-            if selected_mode != st.session_state.view_mode:
-                st.session_state.view_mode = selected_mode
-                st.rerun()
-                
-            st.markdown("<br>", unsafe_allow_html=True)
             
             auth_tab1, auth_tab2, auth_tab3 = st.tabs(["🔑 Masuk Akun", "📝 Daftar Baru", "🔄 Pemulihan Sandi"])
             
@@ -474,7 +466,7 @@ if not st.session_state.logged_in:
                 l_user = st.text_input("Username", key="l_user", placeholder="Masukkan username...")
                 l_pass = st.text_input("Password", type="password", key="l_pass", placeholder="Masukkan password...")
                 st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("🚀 Masuk ke Workspace", type="primary"):
+                if st.button("🚀 Masuk ke Workspace"):
                     if check_user(l_user, l_pass):
                         st.session_state.logged_in = True
                         st.session_state.username = l_user
@@ -559,7 +551,7 @@ if not st.session_state.logged_in:
                         except Exception as e:
                             st.error(f"Gagal memperbarui password: {e}")
 
-        st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy · Terminal Mode</div>', unsafe_allow_html=True)
+        st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy · Responsive Mode</div>', unsafe_allow_html=True)
 
 # ==================== APLIKASI UTAMA SETELAH LOGIN ====================
 else:
@@ -587,17 +579,6 @@ else:
         ],
         label_visibility="visible"
     )
-    
-    with st.expander("⚙️ Pengaturan Tampilan & Layar"):
-        sidebar_mode = st.radio(
-            "Pilih Mode Tampilan:",
-            ["📱 Mode Khusus Ponsel (Mobile)", "🖥️ Mode Desktop (Lebar)"],
-            index=0 if st.session_state.view_mode == "📱 Mode Khusus Ponsel (Mobile)" else 1,
-            key="sb_view_mode"
-        )
-        if sidebar_mode != st.session_state.view_mode:
-            st.session_state.view_mode = sidebar_mode
-            st.rerun()
 
     st.markdown("---")
 
@@ -892,7 +873,7 @@ else:
             * **Registrasi & Login Akun:** Setiap akun diamankan dengan aman untuk menjaga privasi data trading Anda di cloud.
             * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP via email (atau simulasi kode di layar) untuk proses reset password yang aman dan terlindungi.
             * **Validasi Password Lama:** Sistem secara otomatis mendeteksi dan menolak apabila Anda mencoba memasukkan password baru yang sama persis dengan password lama Anda.
-            * **Mode Tampilan Responsif:** Anda dapat beralih antara **Mode Desktop (Lebar)** dan **Mode Kompak (HP / Mobile)** melalui pengaturan agar aplikasi tetap nyaman diakses lewat berbagai perangkat.
+            * **Mode Responsif Otomatis:** Tata letak aplikasi menyesuaikan secara pintar secara otomatis (mengubah kolom menyamping menjadi bertumpuk vertikal di layar kecil) agar optimal diakses dari HP maupun PC tanpa perlu tombol pengaturan manual.
             """)
 
     elif menu == "💬 Masukan & Feedback":

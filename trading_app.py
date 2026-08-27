@@ -1,32 +1,12 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-import sqlite3
-import hashlib
 import random
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import plotly.express as px
-import os
-from github import Github
-
-# ==========================================
-# 0. MODE MAINTENANCE (NYALAKAN/MATIKAN)
-# ==========================================
-IS_MAINTENANCE = True  # Ubah menjadi True jika ingin mengaktifkan mode pemeliharaan
-
-if IS_MAINTENANCE:
-    st.markdown("""
-        <div style="text-align: center; padding: 5rem 1rem;">
-            <h1 style="color: #00ADB5; font-size: 2.5rem;">🚧 Situs Sedang Dalam Perbaikan 🚧</h1>
-            <p style="color: #9CA3AF; font-size: 1.2rem; margin-top: 1rem;">
-                Kami sedang melakukan pemeliharaan sistem dan peningkatan performa.<br>
-                Mohon kunjungi kembali beberapa saat lagi. Terima kasih atas kesabarannya!
-            </p>
-        </div>
-    """, unsafe_allow_html=True)
-    st.stop()  # Menghentikan seluruh proses aplikasi agar menu lain tidak bisa diakses
+from supabase import create_client, Client
 
 # ==========================================
 # 1. KONFIGURASI HALAMAN & TAMPILAN PROFESIONAL
@@ -220,93 +200,17 @@ except Exception:
     EMAIL_SENDER = "azumimaulana36@gmail.com"
     EMAIL_PASSWORD = "kfud dalb ztal kolp"
 
-# ==================== FUNGSI AUTO-SYNC KE GITHUB ====================
-# ==================== FUNGSI AUTO-SYNC KE GITHUB ====================
-def sync_db_to_github():
-    try:
-        github_token = st.secrets["github"]["token"]
-        repo_name = st.secrets["github"]["repo_name"]
-        
-        g = Github(github_token)
-        repo = g.get_repo(repo_name)
-        
-        with open("trading_journal.db", "rb") as f:
-            content = f.read()
-            
-        try:
-            file_in_github = repo.get_contents("trading_journal.db")
-            repo.update_file(
-                path="trading_journal.db",
-                message="Auto-sync: Update trading_journal.db from app action",
-                content=content,
-                sha=file_in_github.sha,
-                branch="main"
-            )
-            st.toast("✅ Database berhasil disinkronkan ke GitHub!", icon="🚀")
-        except Exception as e_inner:
-            # Jika file belum ada di repo, buat baru
-            repo.create_file(
-                path="trading_journal.db",
-                message="Auto-sync: Create trading_journal.db",
-                content=content,
-                branch="main"
-            )
-            st.toast("✅ Database baru berhasil dibuat di GitHub!", icon="🚀")
-        return True
-    except Exception as e:
-        # Menampilkan pesan error asli jika gagal koneksi/token salah/repo salah
-        st.error(f"⚠️ Gagal sinkronisasi ke GitHub: {e}")
-        return False
+# ==================== KONEKSI SUPABASE ====================
+SUPABASE_URL = st.secrets["supabase"]["url"]
+SUPABASE_KEY = st.secrets["supabase"]["key"]
 
-# ==================== DATABASE SETUP ====================
-def init_db():
-    conn = sqlite3.connect('trading_journal.db')
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY,
-            email TEXT UNIQUE,
-            password TEXT,
-            reset_code TEXT,
-            code_expiry TEXT
-        )
-    ''')
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS trades (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT,
-            tanggal TEXT,
-            pair TEXT,
-            tipe TEXT,
-            lot REAL,
-            entry REAL,
-            sl REAL,
-            exit REAL,
-            pl REAL,
-            strategi TEXT,
-            emosi TEXT,
-            screenshot_name TEXT,
-            screenshot_data BLOB
-        )
-    ''')
-    conn.commit()
-    conn.close()
+@st.cache_resource
+def init_supabase() -> Client:
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
 
-init_db()
+supabase: Client = init_supabase()
 
-def make_hash(password):
-    return hashlib.sha256(str.encode(password)).hexdigest()
-
-def is_same_as_old_password(username, new_password):
-    conn = sqlite3.connect('trading_journal.db')
-    c = conn.cursor()
-    c.execute('SELECT password FROM users WHERE username = ?', (username,))
-    data = c.fetchone()
-    conn.close()
-    if data:
-        return data[0] == make_hash(new_password)
-    return False
-
+# ==================== FUNGSI DATABASE SUPABASE ====================
 def send_email_otp(receiver_email, code):
     if EMAIL_SENDER == "email_anda@gmail.com":
         return False, "Konfigurasi email server belum diatur."
@@ -327,59 +231,90 @@ def send_email_otp(receiver_email, code):
         return False, f"Gagal mengirim email: {str(e)}"
 
 def check_user(username, password):
-    conn = sqlite3.connect('trading_journal.db')
-    c = conn.cursor()
-    c.execute('SELECT password FROM users WHERE username = ?', (username,))
-    data = c.fetchone()
-    conn.close()
-    if data:
-        return data[0] == make_hash(password)
-    return False
+    try:
+        response = supabase.table("users").select("*").eq("username", username).eq("password", password).execute()
+        return len(response.data) > 0
+    except Exception:
+        return False
+
+def is_same_as_old_password(username, new_password):
+    try:
+        response = supabase.table("users").select("password").eq("username", username).execute()
+        if response.data:
+            return response.data[0]["password"] == new_password
+        return False
+    except Exception:
+        return False
 
 def add_user(username, email, password):
-    conn = sqlite3.connect('trading_journal.db')
-    c = conn.cursor()
     try:
-        c.execute('INSERT INTO users(username, email, password) VALUES (?, ?, ?)', (username, email, make_hash(password)))
-        conn.commit()
-        conn.close()
+        # Cek apakah username atau email sudah ada
+        check_u = supabase.table("users").select("*").eq("username", username).execute()
+        check_e = supabase.table("users").select("*").eq("email", email).execute()
+        if len(check_u.data) > 0 or len(check_e.data) > 0:
+            return False, "Username atau Email sudah terdaftar."
         
-        # Panggil Auto-Sync ke GitHub setiap ada user baru daftar
-        sync_db_to_github()
-        
+        supabase.table("users").insert({
+            "username": username,
+            "email": email,
+            "password": password
+        }).execute()
         return True, "Akun berhasil didaftarkan."
-    except sqlite3.IntegrityError:
-        conn.close()
-        return False, "Username atau Email sudah terdaftar."
+    except Exception as e:
+        return False, f"Gagal mendaftarkan akun: {str(e)}"
 
 def load_trades(username):
-    conn = sqlite3.connect('trading_journal.db')
-    query = '''
-        SELECT id, tanggal as Tanggal, pair as Pair, tipe as Tipe, lot as Lot, 
-               entry as Entry, sl as SL, exit as Exit, pl as "P/L ($)", 
-               strategi as Strategi, emosi as "Emosi / Catatan", screenshot_name 
-        FROM trades WHERE username = ?
-    '''
-    df = pd.read_sql_query(query, conn, params=(username,))
-    conn.close()
-    return df
+    try:
+        response = supabase.table("trades").select("*").eq("username", username).execute()
+        data = response.data
+        if not data:
+            return pd.DataFrame(columns=["id", "Tanggal", "Pair", "Tipe", "Lot", "Entry", "SL", "Exit", "P/L ($)", "Strategi", "Emosi / Catatan", "screenshot_name"])
+        
+        df = pd.DataFrame(data)
+        # Menyesuaikan nama kolom agar sesuai dengan kode asli
+        rename_map = {
+            "id": "id",
+            "tanggal": "Tanggal",
+            "pair": "Pair",
+            "tipe": "Tipe",
+            "lot": "Lot",
+            "entry": "Entry",
+            "sl": "SL",
+            "exit": "Exit",
+            "pl": "P/L ($)",
+            "strategi": "Strategi",
+            "emosi": "Emosi / Catatan",
+            "screenshot_name": "screenshot_name"
+        }
+        df = df.rename(columns=rename_map)
+        return df
+    except Exception:
+        return pd.DataFrame()
 
 def save_trade(username, row_data, file_name, file_bytes):
-    conn = sqlite3.connect('trading_journal.db')
-    c = conn.cursor()
-    c.execute('''
-        INSERT INTO trades (username, tanggal, pair, tipe, lot, entry, sl, exit, pl, strategi, emosi, screenshot_name, screenshot_data)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        username, row_data["Tanggal"], row_data["Pair"], row_data["Tipe"], row_data["Lot"], 
-        row_data["Entry"], row_data["SL"], row_data["Exit"], row_data["P/L ($)"], 
-        row_data["Strategi"], row_data["Emosi / Catatan"], file_name, file_bytes
-    ))
-    conn.commit()
-    conn.close()
-    
-    # Panggil Auto-Sync ke GitHub setiap ada trade baru disimpan
-    sync_db_to_github()
+    try:
+        # Konversi bytes screenshot ke base64 string jika ada agar aman di Supabase text/JSON
+        import base64
+        b64_encoded = base64.b64encode(file_bytes).decode('utf-8') if file_bytes else None
+
+        payload = {
+            "username": username,
+            "tanggal": str(row_data["Tanggal"]),
+            "pair": row_data["Pair"],
+            "tipe": row_data["Tipe"],
+            "lot": float(row_data["Lot"]),
+            "entry": float(row_data["Entry"]),
+            "sl": float(row_data["SL"]),
+            "exit": float(row_data["Exit"]),
+            "pl": float(row_data["P/L ($)"]),
+            "strategi": row_data["Strategi"],
+            "emosi": row_data["Emosi / Catatan"],
+            "screenshot_name": file_name,
+            "screenshot_data": b64_encoded
+        }
+        supabase.table("trades").insert(payload).execute()
+    except Exception as e:
+        st.error(f"Gagal menyimpan ke cloud: {e}")
 
 # ==================== SESSION STATE LOGIN ====================
 if 'logged_in' not in st.session_state:
@@ -399,7 +334,7 @@ if not st.session_state.logged_in:
                 <span class="feature-badge">🛡️ Kalkulator Anti-MC</span>
                 <span class="feature-badge">📊 Equity Curve Real-Time</span>
                 <span class="feature-badge">📸 Galeri Screenshot Chart</span>
-                <span class="feature-badge">🔒 Enkripsi Data Privat</span>
+                <span class="feature-badge">🔒 Enkripsi Data Privat (Cloud)</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -462,30 +397,28 @@ if not st.session_state.logged_in:
             f_email = st.text_input("Email Terdaftar", key="f_email")
             
             if st.button("📤 Kirim Kode OTP"):
-                conn = sqlite3.connect('trading_journal.db')
-                c = conn.cursor()
-                c.execute('SELECT email FROM users WHERE username = ? AND email = ?', (f_user, f_email))
-                res = c.fetchone()
-                conn.close()
-                
-                if res:
-                    otp_code = str(random.randint(100000, 999999))
-                    expiry = (datetime.now() + timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
-                    conn = sqlite3.connect('trading_journal.db')
-                    c = conn.cursor()
-                    c.execute('UPDATE users SET reset_code = ?, code_expiry = ? WHERE username = ?', (otp_code, expiry, f_user))
-                    conn.commit()
-                    conn.close()
-                    
-                    sent_ok, sent_msg = send_email_otp(f_email, otp_code)
-                    if sent_ok:
-                        st.success("✅ Kode verifikasi terkirim ke email!")
-                        st.session_state.forgot_step = 2
+                try:
+                    res_user = supabase.table("users").select("email").eq("username", f_user).eq("email", f_email).execute()
+                    if len(res_user.data) > 0:
+                        otp_code = str(random.randint(100000, 999999))
+                        expiry = (datetime.now() + timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
+                        
+                        supabase.table("users").update({
+                            "reset_code": otp_code,
+                            "code_expiry": expiry
+                        }).eq("username", f_user).execute()
+                        
+                        sent_ok, sent_msg = send_email_otp(f_email, otp_code)
+                        if sent_ok:
+                            st.success("✅ Kode verifikasi terkirim ke email!")
+                            st.session_state.forgot_step = 2
+                        else:
+                            st.warning(f"⚠️ {sent_msg} (Simulasi OTP Anda: **{otp_code}**)")
+                            st.session_state.forgot_step = 2
                     else:
-                        st.warning(f"⚠️ {sent_msg} (Simulasi OTP Anda: **{otp_code}**)")
-                        st.session_state.forgot_step = 2
-                else:
-                    st.error("⚠️ Username dan Email tidak cocok.")
+                        st.error("⚠️ Username dan Email tidak cocok.")
+                except Exception as e:
+                    st.error(f"Terjadi kesalahan: {e}")
 
             if st.session_state.forgot_step == 2:
                 st.markdown("---")
@@ -494,31 +427,31 @@ if not st.session_state.logged_in:
                 new_p2 = st.text_input("Konfirmasi Password Baru", type="password", key="np2")
                 
                 if st.button("🔒 Konfirmasi Ganti Password"):
-                    conn = sqlite3.connect('trading_journal.db')
-                    c = conn.cursor()
-                    c.execute('SELECT reset_code, code_expiry FROM users WHERE username = ?', (f_user,))
-                    row = c.fetchone()
-                    conn.close()
-                    
-                    if row and row[0] == entered_otp:
-                        if datetime.now() <= datetime.strptime(row[1], '%Y-%m-%d %H:%M:%S'):
-                            if new_p1 == new_p2 and len(new_p1) > 0:
-                                if is_same_as_old_password(f_user, new_p1):
-                                    st.error("⚠️ Password baru tidak boleh sama dengan password lama!")
+                    try:
+                        row_res = supabase.table("users").select("reset_code", "code_expiry").eq("username", f_user).execute()
+                        if row_res.data:
+                            row = row_res.data[0]
+                            if row["reset_code"] == entered_otp:
+                                if datetime.now() <= datetime.strptime(row["code_expiry"], '%Y-%m-%d %H:%M:%S'):
+                                    if new_p1 == new_p2 and len(new_p1) > 0:
+                                        if is_same_as_old_password(f_user, new_p1):
+                                            st.error("⚠️ Password baru tidak boleh sama dengan password lama!")
+                                        else:
+                                            supabase.table("users").update({
+                                                "password": new_p1,
+                                                "reset_code": None,
+                                                "code_expiry": None
+                                            }).eq("username", f_user).execute()
+                                            st.success("🎉 Password berhasil diubah! Silakan login.")
+                                            st.session_state.forgot_step = 1
+                                    else:
+                                        st.error("⚠️ Password tidak cocok.")
                                 else:
-                                    conn = sqlite3.connect('trading_journal.db')
-                                    c = conn.cursor()
-                                    c.execute('UPDATE users SET password = ?, reset_code = NULL, code_expiry = NULL WHERE username = ?', (make_hash(new_p1), f_user))
-                                    conn.commit()
-                                    conn.close()
-                                    st.success("🎉 Password berhasil diubah! Silakan login.")
-                                    st.session_state.forgot_step = 1
+                                    st.error("⚠️ Kode kedaluwarsa.")
                             else:
-                                st.error("⚠️ Password tidak cocok.")
-                        else:
-                            st.error("⚠️ Kode kedaluwarsa.")
-                    else:
-                        st.error("⚠️ Kode OTP salah.")
+                                st.error("⚠️ Kode OTP salah.")
+                    except Exception as e:
+                        st.error(f"Gagal memperbarui password: {e}")
 
     st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy · Terminal Mode</div>', unsafe_allow_html=True)
 
@@ -623,6 +556,9 @@ else:
             
             st.plotly_chart(fig, use_container_width=True)
 
+            # ==========================================
+            # PERHITUNGAN OTOMATIS PNL PER BULAN
+            # ==========================================
             st.markdown("---")
             st.subheader("📅 Rekapitulasi & Perhitungan Otomatis PnL per Bulan")
             st.markdown("Analisis performa keuntungan dan kerugian bersih yang dikelompokkan secara otomatis setiap bulan.")
@@ -751,14 +687,14 @@ else:
                 "Strategi": t_strat, "Emosi / Catatan": t_note
             }
             save_trade(st.session_state.username, new_row, file_name_val, file_bytes_val)
-            st.success("🎉 Data jurnal dan screenshot berhasil disimpan ke akun Anda!")
+            st.success("🎉 Data jurnal dan screenshot berhasil disimpan secara aman ke Cloud Database!")
 
     elif menu == "📋 Riwayat & Kalender":
         st.title("📋 Riwayat Lengkap & Galeri Jurnal Trading")
         st.markdown("Daftar seluruh transaksi yang pernah Anda catat, lengkap dengan opsi unduh data dan galeri gambar chart.")
         
         if len(df_raw) > 0:
-            display_df = df_raw.drop(columns=["id", "screenshot_name"], errors="ignore")
+            display_df = df_raw.drop(columns=["id", "screenshot_name", "screenshot_data"], errors="ignore")
             st.dataframe(display_df, use_container_width=True)
             
             csv = display_df.to_csv(index=False).encode('utf-8')
@@ -766,22 +702,30 @@ else:
                 label="📥 Download Jurnal ke Format CSV",
                 data=csv,
                 file_name=f'jurnal_trading_{st.session_state.username}.csv',
-                mime='text/css',
+                mime='text/csv',
             )
             
             st.markdown("---")
             st.subheader("🖼️ Galeri Screenshot Chart Transaksi")
-            conn = sqlite3.connect('trading_journal.db')
-            c = conn.cursor()
-            c.execute('SELECT tanggal, pair, pl, screenshot_name, screenshot_data FROM trades WHERE username = ? AND screenshot_data IS NOT NULL', (st.session_state.username,))
-            img_rows = c.fetchall()
-            conn.close()
+            try:
+                img_res = supabase.table("trades").select("tanggal, pair, pl, screenshot_name, screenshot_data").eq("username", st.session_state.username).not_.is_("screenshot_data", "null").execute()
+                img_rows = img_res.data
+            except Exception:
+                img_rows = []
             
             if img_rows:
+                import base64
                 for row in img_rows:
-                    dt, pr, pl_val, s_name, s_data = row
-                    with st.expander(f"📁 Tanggal: {dt} | Pair: {pr} | P/L: ${pl_val} | File: {s_name}"):
-                        st.image(s_data, caption=s_name, use_container_width=True)
+                    dt = row.get("tanggal")
+                    pr = row.get("pair")
+                    pl_val = row.get("pl")
+                    s_name = row.get("screenshot_name")
+                    s_data_b64 = row.get("screenshot_data")
+                    
+                    if s_data_b64:
+                        img_bytes = base64.b64decode(s_data_b64)
+                        with st.expander(f"📁 Tanggal: {dt} | Pair: {pr} | P/L: ${pl_val} | File: {s_name}"):
+                            st.image(img_bytes, caption=s_name, use_container_width=True)
             else:
                 st.info("Belum ada screenshot chart yang diunggah pada riwayat transaksi.")
         else:
@@ -807,7 +751,7 @@ else:
             
         with st.expander("🧮 2. Panduan Menu: Kalkulator Lot & Risiko"):
             st.markdown("""
-            * **Fungsi Utama:** Alat bantu perhitungan manajemen risiko sebelum Anda membuka posisi di market agar terhindar dari *over-leverage*.
+            * **Fungsi Utama:** Alat bantu perhitungan manajemen risiko (*Risk Management*) sebelum Anda membuka posisi di market agar terhindar dari *over-leverage*.
             * **Cara Penggunaan:**
                 1. Masukkan **Total Modal Akun ($)** yang Anda miliki saat ini.
                 2. Tentukan **Risiko Maksimal (%)** yang siap ditoleransi per transaksi (umumnya 1% - 2%).
@@ -818,16 +762,16 @@ else:
             
         with st.expander("➕ 3. Panduan Menu: Input Jurnal & Screenshot"):
             st.markdown("""
-            * **Fungsi Utama:** Formulir pencatatan harian untuk mendokumentasikan parameter transaksi secara terstruktur—termasuk penetapan **Stop Loss (SL)**—beserta evaluasi psikologisnya.
+            * **Fungsi Utama:** Formulir pencatatan harian untuk mendokumentasikan parameter transaksi secara terstruktur—termasuk penetapan **Stop Loss (SL)** sebagai pengaman risiko utama—beserta evaluasi psikologisnya.
             * **Langkah Input Data & Skenario Terkena SL:**
                 * **Tanggal & Pair:** Masukkan tanggal eksekusi dan pilih instrumen aset.
                 * **Tipe Order:** Pilih apakah posisi berupa **Buy** (Long) atau **Sell** (Short).
                 * **Lot, Entry, & SL:** Masukkan ukuran lot, harga masuk (*entry price*), dan level harga **Stop Loss (SL)**.
-                * **Penanganan Saat Terkena SL di Market (Real-Time):** Jika posisi Anda di platform trading (seperti MT5) terkena *Stop Loss* secara *real-time* di market, buka menu ini dan masukkan harga penutupan aktual pada kolom **Harga Keluar Aktual (Exit)**. 
-                * **Pencatatan Kerugian:** Dengan memasukkan harga Exit tersebut, sistem akan otomatis menghitung dan menuliskan nominal kerugian bersih (berwarna merah) ke dalam database begitu Anda menekan tombol simpan.
-                * **Strategi & Emosi:** Masukkan nama strategi teknikal dan evaluasi kondisi psikologis saat trade tersebut terjadi.
-                * **Unggah Screenshot:** Lampirkan gambar bukti chart (PNG/JPG) untuk evaluasi jangka panjang.
-            * **Kalkulasi Otomatis:** Sistem secara instan menampilkan estimasi risiko Stop Loss serta hasil akhir transaksi sebelum data disimpan permanen ke database dan otomatis disinkronkan ke GitHub.
+                * **Penanganan Saat Terkena SL di Market (Real-Time):** Jika posisi Anda di platform trading (seperti MT5) terkena *Stop Loss* secara *real-time* di market, buka menu ini dan masukkan harga penutupan aktual pada kolom **Harga Keluar Aktual (Exit)** (biasanya nilainya persis atau sangat dekat dengan level *Stop Loss* yang Anda pasang). 
+                * **Pencatatan Kerugian:** Dengan memasukkan harga Exit tersebut, sistem akan otomatis menghitung dan menuliskan nominal kerugian bersih (berwarna merah) ke dalam database begitu Anda menekan tombol simpan, sehingga laporan kerugian Anda terekam dengan akurat di jurnal.
+                * **Strategi & Emosi:** Masukkan nama strategi teknikal dan evaluasi kondisi psikologis saat trade tersebut terjadi (misalnya: *Disiplin & Sesuai Plan* atau *Cut Loss Terlambat*).
+                * **Unggah Screenshot:** Lampirkan gambar bukti chart (PNG/JPG) untuk evaluasi teknikal jangka panjang.
+            * **Kalkulasi Otomatis:** Sistem secara instan menampilkan estimasi risiko Stop Loss serta hasil akhir transaksi (Profit/Loss) sebelum data disimpan permanen ke database.
             """)
             
         with st.expander("📋 4. Panduan Menu: Riwayat & Kalender"):
@@ -835,42 +779,16 @@ else:
             * **Fungsi Utama:** Pusat arsip data transaksi masa lalu guna keperluan evaluasi berkala dan audit performa trading.
             * **Fitur & Navigasi:**
                 * **Tabel Riwayat Transaksi:** Menampilkan seluruh daftar riwayat trade lengkap dalam format tabel bersih.
-                * **Ekspor CSV:** Tombol unduh untuk mengunduh seluruh data jurnal ke format CSV.
-                * **Galeri Screenshot Chart:** Bagian ekspansi interaktif untuk meninjau ulang gambar setup chart yang pernah diunggah.
+                * **Ekspor CSV:** Tombol unduh untuk mengunduh seluruh data jurnal ke format CSV agar dapat dibuka atau dianalisis lebih lanjut menggunakan Microsoft Excel / Google Sheets.
+                * **Galeri Screenshot Chart:** Bagian ekspansi interaktif untuk meninjau ulang gambar setup chart yang pernah diunggah pada transaksi tertentu, lengkap dengan rincian tanggal, pair, dan hasil P/L-nya.
             """)
 
         with st.expander("🛠️ 5. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):
             st.markdown("""
-            * **Registrasi & Login Akun:** Setiap akun diamankan dengan enkripsi *hash* SHA-256 untuk menjaga privasi data trading.
-            * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP 6-digit via email.
-            * **Validasi Password Lama:** Sistem secara otomatis mendeteksi dan menolak apabila Anda mencoba memasukkan password baru yang sama persis dengan password lama.
-            * **Mode Tampilan Responsif:** Anda dapat beralih antara **Mode Desktop (Lebar)** dan **Mode Kompak (HP / Mobile)**.
+            * **Registrasi & Login Akun:** Setiap akun diamankan dengan aman untuk menjaga privasi data trading Anda di cloud.
+            * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP 6-digit via email untuk proses reset password yang aman dan terlindungi.
+            * **Validasi Password Lama:** Sistem secara otomatis mendeteksi dan menolak apabila Anda mencoba memasukkan password baru yang sama persis dengan password lama Anda.
+            * **Mode Tampilan Responsif:** Anda dapat beralih antara **Mode Desktop (Lebar)** dan **Mode Kompak (HP / Mobile)** melalui pengaturan agar aplikasi tetap nyaman diakses lewat berbagai perangkat.
             """)
 
     st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy</div>', unsafe_allow_html=True)
-    
-# ==========================================
-# ENDPOINT DOWNLOAD DATABASE TERPROTEKSI
-# ==========================================
-query_params = st.query_params
-
-if "download_db" in query_params:
-    RAHASIA_TOKEN_SAYA = "lens378" 
-    token_masuk = query_params.get("download_db")
-    
-    if token_masuk == RAHASIA_TOKEN_SAYA:
-        db_path = "trading_journal.db"
-        if os.path.exists(db_path):
-            with open(db_path, "rb") as f:
-                st.download_button(
-                    label="Download Database File",
-                    data=f,
-                    file_name="trading_journal.db",
-                    mime="application/octet-stream"
-                )
-            st.stop() 
-        else:
-            st.error("File database lokal belum tersedia di server.")
-    else:
-        st.error("⚠️ Akses Ditolak: Token Rahasia Salah atau Tidak Valid!")
-        st.stop()

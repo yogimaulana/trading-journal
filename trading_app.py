@@ -138,10 +138,14 @@ st.markdown("""
         color: #ffffff !important;
         border: 1px solid #374151 !important;
         border-radius: 8px !important;
-        font-size: 16px !important; /* Mencegah auto-zoom di perangkat iOS */
+        font-size: 16px !important;
     }
+    
+    /* PENGATURAN HERO CONTAINER DENGAN EFEK GRID TRADING (OPSI 1) */
     .hero-container {
-        background: linear-gradient(135deg, rgba(17, 24, 39, 0.85) 0%, rgba(31, 41, 55, 0.85) 100%);
+        background: linear-gradient(135deg, rgba(17, 24, 39, 0.9) 0%, rgba(31, 41, 55, 0.9) 100%),
+                    radial-gradient(circle, rgba(0, 173, 181, 0.1) 1px, transparent 1px);
+        background-size: 100% 100%, 20px 20px;
         border: 1px solid rgba(0, 173, 181, 0.35);
         padding: 3rem 2rem;
         border-radius: 16px;
@@ -150,6 +154,7 @@ st.markdown("""
         backdrop-filter: blur(10px);
         animation: pulseGlow 4s infinite ease-in-out;
     }
+    
     .hero-title {
         color: #00ADB5;
         font-size: 2.3rem;
@@ -211,9 +216,6 @@ st.markdown("""
         width: 100%;
     }
 
-    /* ==========================================
-       MEDIA QUERY OTOMATIS KHUSUS LAYAR HP (MOBILE)
-       ========================================== */
     @media (max-width: 768px) {
         .block-container {
             padding-top: 1rem !important;
@@ -237,7 +239,6 @@ st.markdown("""
         [data-testid="stMetricValue"] { 
             font-size: 1.15rem !important; 
         }
-        /* Otomatis jadikan elemen kolom vertikal (stack) di HP agar tidak gepeng */
         [data-testid="column"] {
             width: 100% !important;
             flex: 100% !important;
@@ -247,13 +248,11 @@ st.markdown("""
     }
     </style>
 
-    <!-- HTML untuk Elemen Latar Belakang Animasi Orbit Cahaya -->
     <div class="bg-animation-container">
         <div class="glowing-orb orb-1"></div>
         <div class="glowing-orb orb-2"></div>
     </div>
 """, unsafe_allow_html=True)
-
 # ==================== KONFIGURASI EMAIL (SMTP) ====================
 try:
     EMAIL_SENDER = st.secrets["email"]["sender"]

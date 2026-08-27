@@ -221,6 +221,7 @@ except Exception:
     EMAIL_PASSWORD = "kfud dalb ztal kolp"
 
 # ==================== FUNGSI AUTO-SYNC KE GITHUB ====================
+# ==================== FUNGSI AUTO-SYNC KE GITHUB ====================
 def sync_db_to_github():
     try:
         github_token = st.secrets["github"]["token"]
@@ -241,16 +242,20 @@ def sync_db_to_github():
                 sha=file_in_github.sha,
                 branch="main"
             )
-        except Exception:
+            st.toast("✅ Database berhasil disinkronkan ke GitHub!", icon="🚀")
+        except Exception as e_inner:
+            # Jika file belum ada di repo, buat baru
             repo.create_file(
                 path="trading_journal.db",
                 message="Auto-sync: Create trading_journal.db",
                 content=content,
                 branch="main"
             )
+            st.toast("✅ Database baru berhasil dibuat di GitHub!", icon="🚀")
         return True
     except Exception as e:
-        print(f"Gagal sinkronisasi ke GitHub: {e}")
+        # Menampilkan pesan error asli jika gagal koneksi/token salah/repo salah
+        st.error(f"⚠️ Gagal sinkronisasi ke GitHub: {e}")
         return False
 
 # ==================== DATABASE SETUP ====================

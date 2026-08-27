@@ -18,14 +18,7 @@ st.set_page_config(
 )
 
 # ==================== KUSTOM CSS & RESPONSIF OTOMATIS (HP & PC) ====================
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-75YJERE40G"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
 
-  gtag('config', 'G-75YJERE40G');
 </script>
 st.markdown("""
     <style>

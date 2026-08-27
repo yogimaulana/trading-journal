@@ -12,7 +12,7 @@ from supabase import create_client, Client
 # 1. KONFIGURASI HALAMAN & TAMPILAN RESPONSIF OTOMATIS
 # ==========================================
 st.set_page_config(
-    page_title="Lensjourneyy · Professional Trading Journal & Risk MTRX",
+    page_title="Lensjourneyy Trading Journal",
     page_icon="📈",
     layout="wide"
 )
@@ -253,6 +253,7 @@ st.markdown("""
         <div class="glowing-orb orb-2"></div>
     </div>
 """, unsafe_allow_html=True)
+
 # ==================== KONFIGURASI EMAIL (SMTP) ====================
 try:
     EMAIL_SENDER = st.secrets["email"]["sender"]

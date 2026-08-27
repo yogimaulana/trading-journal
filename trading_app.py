@@ -60,7 +60,7 @@ st.markdown("""
         border: none;
         color: white;
     }
-    .stTextInput>div>div>input, .stNumberInput>div>div>input, .stSelectbox>div>div>div {
+    .stTextInput>div>div>input, .stNumberInput>div>div>input, .stSelectbox>div>div>div, .stTextArea>div>div>textarea {
         background-color: #111827 !important;
         color: #ffffff !important;
         border: 1px solid #374151 !important;
@@ -433,7 +433,8 @@ else:
             "🧮 Kalkulator Lot & Risiko", 
             "➕ Input Jurnal & Screenshot", 
             "📋 Riwayat & Kalender", 
-            "📖 Panduan & Penjelasan Sistem"
+            "📖 Panduan & Penjelasan Sistem",
+            "💬 Masukan & Feedback"
         ],
         label_visibility="visible"
     )
@@ -744,5 +745,71 @@ else:
             * **Validasi Password Lama:** Sistem secara otomatis mendeteksi dan menolak apabila Anda mencoba memasukkan password baru yang sama persis dengan password lama Anda.
             * **Mode Tampilan Responsif:** Anda dapat beralih antara **Mode Desktop (Lebar)** dan **Mode Kompak (HP / Mobile)** melalui pengaturan agar aplikasi tetap nyaman diakses lewat berbagai perangkat.
             """)
+
+    elif menu == "💬 Masukan & Feedback":
+        st.title("💬 Masukan & Feedback Aplikasi")
+        st.markdown("Bantu kami meningkatkan kualitas aplikasi jurnal trading ini dengan mengirimkan kritik, saran, atau laporan kendala.")
+        st.markdown("---")
+
+        fb_tab1, fb_tab2 = st.tabs(["📝 Kirim Feedback", "📋 Daftar Feedback Masuk"])
+
+        with fb_tab1:
+            st.subheader("Kirim Masukan Anda")
+            with st.form("form_feedback_app", clear_on_submit=True):
+                pesan_fb = st.text_area(
+                    "Pesan / Saran / Laporan Bug", 
+                    placeholder="Tuliskan masukan atau kendala yang Anda alami di sini..."
+                )
+                rating_fb = st.slider(
+                    "Rating Kepuasan Aplikasi", 
+                    min_value=1, 
+                    max_value=5, 
+                    value=5,
+                    help="1 = Sangat Buruk, 5 = Sangat Baik"
+                )
+                submitted_fb = st.form_submit_button("Kirim Feedback ke Cloud")
+                
+                if submitted_fb:
+                    if not pesan_fb or not pesan_fb.strip():
+                        st.warning("Pesan feedback tidak boleh kosong!")
+                    else:
+                        try:
+                            data_feedback = {
+                                "username": st.session_state.username,
+                                "pesan": pesan_fb.strip(),
+                                "rating": rating_fb
+                            }
+                            supabase.table("feedback").insert(data_feedback).execute()
+                            st.success("🎉 Terima kasih! Feedback Anda berhasil dikirim ke cloud Supabase.")
+                        except Exception as e:
+                            st.error(f"Gagal mengirim feedback: {e}")
+
+        with fb_tab2:
+            st.subheader("Daftar Masukan Pengguna")
+            st.write("Berikut adalah rekap feedback yang telah masuk ke database cloud:")
+            
+            if st.button("🔄 Muat Ulang Data Feedback"):
+                st.rerun()
+                
+            try:
+                res_fb = supabase.table("feedback").select("*").order("created_at", desc=True).execute()
+                feedback_list = res_fb.data
+                
+                if not feedback_list:
+                    st.info("Belum ada feedback yang dikirimkan.")
+                else:
+                    for item in feedback_list:
+                        with st.container():
+                            u_name = item.get("username", "Anonim")
+                            u_rating = item.get("rating", "-")
+                            u_waktu = item.get("created_at", "")
+                            u_pesan = item.get("pesan", "")
+                            
+                            st.markdown(f"**Pengguna:** `{u_name}` | **Rating:** {'⭐' * int(u_rating)} ({u_rating}/5)")
+                            st.markdown(f"*Waktu:* `{u_waktu}`")
+                            st.info(u_pesan)
+                            st.markdown("---")
+            except Exception as e:
+                st.warning(f"Gagal memuat data feedback: {e}")
 
     st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy</div>', unsafe_allow_html=True)

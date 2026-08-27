@@ -75,18 +75,6 @@ st.markdown("""
         margin-bottom: 2rem;
         box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     }
-    .hero-title {
-        color: #00ADB5;
-        font-size: 2.2rem;
-        font-weight: 800;
-        margin-bottom: 0.5rem;
-        letter-spacing: -0.5px;
-    }
-    .hero-subtitle {
-        color: #9CA3AF;
-        font-size: 1.05rem;
-        margin-bottom: 1.5rem;
-    }
     .feature-badge {
         background-color: rgba(0, 173, 181, 0.15);
         color: #00ADB5;
@@ -287,11 +275,30 @@ if 'forgot_step' not in st.session_state:
 
 # ==================== HALAMAN LANDING & AUTHENTICATION ====================
 if not st.session_state.logged_in:
+    # Logo Keren & Header di Halaman Login
     st.markdown("""
         <div class="hero-container">
-            <div class="hero-title">📈 Professional Trading Journal & Risk MTRX</div>
-            <div class="hero-subtitle">Platform Pencatatan Jurnal & Manajemen Risiko Profesional</div>
-            <div>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 1rem;">
+                <div style="
+                    background: linear-gradient(135deg, #00ADB5 0%, #005F65 100%);
+                    width: 60px;
+                    height: 60px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 14px;
+                    font-size: 30px;
+                    box-shadow: 0 0 20px rgba(0, 173, 181, 0.5);
+                    border: 1px solid rgba(0, 173, 181, 0.6);
+                ">📈</div>
+                <div style="text-align: left;">
+                    <h1 style="margin: 0; color: #f3f4f6; font-size: 2.2rem; font-weight: 800; letter-spacing: -0.5px;">
+                        Lensjourneyy <span style="color: #00ADB5; font-size: 0.95rem; border: 1px solid #00ADB5; padding: 2px 8px; border-radius: 6px; margin-left: 8px; background: rgba(0, 173, 181, 0.1);">PRO</span>
+                    </h1>
+                    <p style="margin: 0; color: #9CA3AF; font-size: 1.05rem;">Professional Trading Journal & Risk Matrix</p>
+                </div>
+            </div>
+            <div style="margin-top: 1.5rem;">
                 <span class="feature-badge">🛡️ Kalkulator Anti-MC</span>
                 <span class="feature-badge">📊 Equity Curve Real-Time</span>
                 <span class="feature-badge">📸 Galeri Screenshot Chart</span>
@@ -415,7 +422,28 @@ if not st.session_state.logged_in:
 
 # ==================== APLIKASI UTAMA SETELAH LOGIN ====================
 else:
-    col_top1, col_top2 = st.columns([0.7, 0.3])
+    # Header mini dengan Logo di dalam workspace utama
+    st.markdown("""
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 5px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="
+                    background: linear-gradient(135deg, #00ADB5 0%, #005F65 100%);
+                    width: 40px;
+                    height: 40px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 10px;
+                    font-size: 20px;
+                    box-shadow: 0 0 12px rgba(0, 173, 181, 0.4);
+                ">📈</div>
+                <h3 style="margin: 0; color: #f3f4f6; font-size: 1.2rem; font-weight: 800;">
+                    Lensjourneyy <span style="color: #00ADB5; font-size: 0.75rem; border: 1px solid #00ADB5; padding: 1px 6px; border-radius: 4px;">PRO</span>
+                </h3>
+            </div>
+    """, unsafe_allow_html=True)
+
+    col_top1, col_top2 = st.columns([0.6, 0.4])
     with col_top1:
         st.markdown(f"👤 **Active Workspace:** <span style='color: #00ADB5;'>{st.session_state.username}</span>", unsafe_allow_html=True)
     with col_top2:

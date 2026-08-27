@@ -802,9 +802,20 @@ else:
                         with st.container():
                             u_name = item.get("username", "Anonim")
                             u_rating = item.get("rating", "-")
-                            u_waktu = item.get("created_at", "")
+                            u_waktu_raw = item.get("created_at", "")
                             u_pesan = item.get("pesan", "")
                             
+                            # Konversi waktu dari UTC ke WIB (+7 jam)
+                            try:
+                                if u_waktu_raw:
+                                    dt_utc = pd.to_datetime(u_waktu_raw)
+                                    dt_wib = dt_utc + pd.Timedelta(hours=7)
+                                    u_waktu = dt_wib.strftime('%Y-%m-%d %H:%M:%S') + " WIB"
+                                else:
+                                    u_waktu = "-"
+                            except Exception:
+                                u_waktu = u_waktu_raw
+
                             st.markdown(f"**Pengguna:** `{u_name}` | **Rating:** {'⭐' * int(u_rating)} ({u_rating}/5)")
                             st.markdown(f"*Waktu:* `{u_waktu}`")
                             st.info(u_pesan)

@@ -20,27 +20,19 @@ st.set_page_config(
 # ==================== KUSTOM CSS & MODERN GLASSMORPHISM THEME ====================
 st.markdown("""
     <style>
-    /* Mengatur latar belakang aplikasi secara keseluruhan agar bernuansa Trading Terminal */
     .stApp {
         background-color: #0b0f19;
         color: #f3f4f6;
     }
-
-    /* Menyembunyikan Header atas secara keseluruhan */
     header[data-testid="stHeader"] {
         display: none !important;
     }
-    
-    /* Menyembunyikan tombol deploy / menu toolbar melayang */
     .stDeployButton, footer {
         visibility: hidden !important;
     }
-    
     [data-testid="stToolbar"] {
         display: none !important;
     }
-
-    /* Card Box / Container kustom dengan efek Glassmorphism */
     .trading-card {
         background: rgba(17, 24, 39, 0.7);
         border: 1px solid rgba(0, 173, 181, 0.2);
@@ -50,8 +42,6 @@ st.markdown("""
         backdrop-filter: blur(4px);
         margin-bottom: 1rem;
     }
-
-    /* Styling Tombol Utama (Primary) */
     .stButton>button {
         width: 100%;
         border-radius: 8px;
@@ -64,28 +54,18 @@ st.markdown("""
         box-shadow: 0 4px 14px rgba(0, 173, 181, 0.3);
         transition: all 0.3s ease;
     }
-    
     .stButton>button:hover {
         background: linear-gradient(135deg, #00c4ce 0%, #00939c 100%);
         box-shadow: 0 6px 20px rgba(0, 173, 181, 0.5);
         border: none;
         color: white;
     }
-
-    /* Styling Input Fields */
     .stTextInput>div>div>input, .stNumberInput>div>div>input, .stSelectbox>div>div>div {
         background-color: #111827 !important;
         color: #ffffff !important;
         border: 1px solid #374151 !important;
         border-radius: 8px !important;
     }
-    
-    .stTextInput>div>div>input:focus, .stNumberInput>div>div>input:focus {
-        border-color: #00ADB5 !important;
-        box-shadow: 0 0 0 1px #00ADB5 !important;
-    }
-
-    /* Landing Page Hero Card Styling */
     .hero-container {
         background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
         border: 1px solid rgba(0, 173, 181, 0.3);
@@ -95,7 +75,6 @@ st.markdown("""
         margin-bottom: 2rem;
         box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     }
-    
     .hero-title {
         color: #00ADB5;
         font-size: 2.2rem;
@@ -103,13 +82,11 @@ st.markdown("""
         margin-bottom: 0.5rem;
         letter-spacing: -0.5px;
     }
-
     .hero-subtitle {
         color: #9CA3AF;
         font-size: 1.05rem;
         margin-bottom: 1.5rem;
     }
-
     .feature-badge {
         background-color: rgba(0, 173, 181, 0.15);
         color: #00ADB5;
@@ -121,8 +98,6 @@ st.markdown("""
         margin: 4px;
         border: 1px solid rgba(0, 173, 181, 0.4);
     }
-
-    /* Metrik Kustom */
     [data-testid="stMetric"] {
         background: rgba(17, 24, 39, 0.8);
         border: 1px solid #374151;
@@ -130,18 +105,14 @@ st.markdown("""
         border-radius: 10px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-    
     [data-testid="stMetricLabel"] {
         color: #9CA3AF !important;
         font-weight: 500;
     }
-    
     [data-testid="stMetricValue"] {
         color: #00ADB5 !important;
         font-weight: 700;
     }
-
-    /* Watermark Footer */
     .footer-watermark {
         position: fixed;
         bottom: 8px;
@@ -152,7 +123,6 @@ st.markdown("""
         font-weight: 500;
         letter-spacing: 0.5px;
     }
-
     .stDataFrame {
         border-radius: 8px;
         overflow: hidden;
@@ -178,21 +148,19 @@ if st.session_state.view_mode == "📱 Mode Khusus Ponsel (Mobile)":
         h2 { font-size: 1.15rem !important; }
         h3 { font-size: 1.05rem !important; }
         [data-testid="stMetricValue"] { font-size: 1.15rem !important; }
-        
         [data-testid="column"] {
             width: 100% !important;
             flex: 100% !important;
             min-width: 100% !important;
             margin-bottom: 0.5rem;
         }
-        
         input, select, textarea {
             font-size: 16px !important;
         }
         </style>
     """, unsafe_allow_html=True)
 
-# ==================== KONFIGURASI EMAIL (SMTP) AMAN ====================
+# ==================== KONFIGURASI EMAIL (SMTP) ====================
 try:
     EMAIL_SENDER = st.secrets["email"]["sender"]
     EMAIL_PASSWORD = st.secrets["email"]["password"]
@@ -212,8 +180,6 @@ supabase: Client = init_supabase()
 
 # ==================== FUNGSI DATABASE SUPABASE ====================
 def send_email_otp(receiver_email, code):
-    if EMAIL_SENDER == "email_anda@gmail.com":
-        return False, "Konfigurasi email server belum diatur."
     try:
         msg = MIMEMultipart()
         msg['From'] = f"Lensjourneyy Support <{EMAIL_SENDER}>"
@@ -248,18 +214,15 @@ def is_same_as_old_password(username, new_password):
 
 def add_user(username, email, password):
     try:
-        # Cek apakah username atau email sudah ada
         check_u = supabase.table("users").select("*").eq("username", username).execute()
-        check_e = supabase.table("users").select("*").eq("email", email).execute()
-        if len(check_u.data) > 0 or len(check_e.data) > 0:
-            return False, "Username atau Email sudah terdaftar."
+        if len(check_u.data) > 0:
+            return False, "Username sudah terdaftar. Silakan gunakan username lain."
         
         supabase.table("users").insert({
             "username": username,
-            "email": email,
             "password": password
         }).execute()
-        return True, "Akun berhasil didaftarkan."
+        return True, "Akun berhasil didaftarkan!"
     except Exception as e:
         return False, f"Gagal mendaftarkan akun: {str(e)}"
 
@@ -271,7 +234,6 @@ def load_trades(username):
             return pd.DataFrame(columns=["id", "Tanggal", "Pair", "Tipe", "Lot", "Entry", "SL", "Exit", "P/L ($)", "Strategi", "Emosi / Catatan", "screenshot_name"])
         
         df = pd.DataFrame(data)
-        # Menyesuaikan nama kolom agar sesuai dengan kode asli
         rename_map = {
             "id": "id",
             "tanggal": "Tanggal",
@@ -293,7 +255,6 @@ def load_trades(username):
 
 def save_trade(username, row_data, file_name, file_bytes):
     try:
-        # Konversi bytes screenshot ke base64 string jika ada agar aman di Supabase text/JSON
         import base64
         b64_encoded = base64.b64encode(file_bytes).decode('utf-8') if file_bytes else None
 
@@ -377,12 +338,12 @@ if not st.session_state.logged_in:
         with auth_tab2:
             st.markdown("<br>", unsafe_allow_html=True)
             r_user = st.text_input("Username Baru", key="r_user", placeholder="Pilih username unik...")
-            r_email = st.text_input("Email Aktif", key="r_email", placeholder="nama@email.com")
+            r_email = st.text_input("Email Kontak (Opsional)", key="r_email", placeholder="nama@email.com")
             r_pass = st.text_input("Password Baru", type="password", key="r_pass", placeholder="Buat password...")
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("✨ Buat Akun Gratis Sekarang"):
-                if r_user.strip() == "" or r_email.strip() == "" or r_pass.strip() == "":
-                    st.warning("⚠️ Semua kolom data wajib diisi.")
+                if r_user.strip() == "" or r_pass.strip() == "":
+                    st.warning("⚠️ Username dan Password wajib diisi.")
                 else:
                     success, msg = add_user(r_user, r_email, r_pass)
                     if success:
@@ -392,33 +353,31 @@ if not st.session_state.logged_in:
 
         with auth_tab3:
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("#### Pemulihan Password via Email")
+            st.markdown("#### Pemulihan Password")
             f_user = st.text_input("Username Akun Anda", key="f_user")
-            f_email = st.text_input("Email Terdaftar", key="f_email")
+            f_email = st.text_input("Email Tujuan Pengiriman OTP", key="f_email")
             
             if st.button("📤 Kirim Kode OTP"):
-                try:
-                    res_user = supabase.table("users").select("email").eq("username", f_user).eq("email", f_email).execute()
-                    if len(res_user.data) > 0:
-                        otp_code = str(random.randint(100000, 999999))
-                        expiry = (datetime.now() + timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
-                        
+                if f_user.strip() == "" or f_email.strip() == "":
+                    st.warning("⚠️ Masukkan username dan email tujuan.")
+                else:
+                    otp_code = str(random.randint(100000, 999999))
+                    expiry = (datetime.now() + timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
+                    try:
                         supabase.table("users").update({
                             "reset_code": otp_code,
                             "code_expiry": expiry
                         }).eq("username", f_user).execute()
-                        
-                        sent_ok, sent_msg = send_email_otp(f_email, otp_code)
-                        if sent_ok:
-                            st.success("✅ Kode verifikasi terkirim ke email!")
-                            st.session_state.forgot_step = 2
-                        else:
-                            st.warning(f"⚠️ {sent_msg} (Simulasi OTP Anda: **{otp_code}**)")
-                            st.session_state.forgot_step = 2
+                    except Exception:
+                        pass
+                    
+                    sent_ok, sent_msg = send_email_otp(f_email, otp_code)
+                    if sent_ok:
+                        st.success("✅ Kode verifikasi terkirim ke email!")
+                        st.session_state.forgot_step = 2
                     else:
-                        st.error("⚠️ Username dan Email tidak cocok.")
-                except Exception as e:
-                    st.error(f"Terjadi kesalahan: {e}")
+                        st.warning(f"⚠️ {sent_msg} (Simulasi OTP Anda: **{otp_code}**)")
+                        st.session_state.forgot_step = 2
 
             if st.session_state.forgot_step == 2:
                 st.markdown("---")
@@ -431,25 +390,24 @@ if not st.session_state.logged_in:
                         row_res = supabase.table("users").select("reset_code", "code_expiry").eq("username", f_user).execute()
                         if row_res.data:
                             row = row_res.data[0]
-                            if row["reset_code"] == entered_otp:
-                                if datetime.now() <= datetime.strptime(row["code_expiry"], '%Y-%m-%d %H:%M:%S'):
-                                    if new_p1 == new_p2 and len(new_p1) > 0:
-                                        if is_same_as_old_password(f_user, new_p1):
-                                            st.error("⚠️ Password baru tidak boleh sama dengan password lama!")
-                                        else:
-                                            supabase.table("users").update({
-                                                "password": new_p1,
-                                                "reset_code": None,
-                                                "code_expiry": None
-                                            }).eq("username", f_user).execute()
-                                            st.success("🎉 Password berhasil diubah! Silakan login.")
-                                            st.session_state.forgot_step = 1
+                            if row.get("reset_code") == entered_otp:
+                                if new_p1 == new_p2 and len(new_p1) > 0:
+                                    if is_same_as_old_password(f_user, new_p1):
+                                        st.error("⚠️ Password baru tidak boleh sama dengan password lama!")
                                     else:
-                                        st.error("⚠️ Password tidak cocok.")
+                                        supabase.table("users").update({
+                                            "password": new_p1,
+                                            "reset_code": None,
+                                            "code_expiry": None
+                                        }).eq("username", f_user).execute()
+                                        st.success("🎉 Password berhasil diubah! Silakan login.")
+                                        st.session_state.forgot_step = 1
                                 else:
-                                    st.error("⚠️ Kode kedaluwarsa.")
+                                    st.error("⚠️ Konfirmasi password tidak cocok.")
                             else:
                                 st.error("⚠️ Kode OTP salah.")
+                        else:
+                            st.error("⚠️ User tidak ditemukan.")
                     except Exception as e:
                         st.error(f"Gagal memperbarui password: {e}")
 
@@ -556,13 +514,9 @@ else:
             
             st.plotly_chart(fig, use_container_width=True)
 
-            # ==========================================
-            # PERHITUNGAN OTOMATIS PNL PER BULAN
-            # ==========================================
             st.markdown("---")
             st.subheader("📅 Rekapitulasi & Perhitungan Otomatis PnL per Bulan")
-            st.markdown("Analisis performa keuntungan dan kerugian bersih yang dikelompokkan secara otomatis setiap bulan.")
-
+            
             df["Bulan"] = df["Tanggal"].dt.to_period("M").astype(str)
             monthly_summary = df.groupby("Bulan").agg(
                 Total_Trade=("P/L ($)", "count"),
@@ -786,7 +740,7 @@ else:
         with st.expander("🛠️ 5. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):
             st.markdown("""
             * **Registrasi & Login Akun:** Setiap akun diamankan dengan aman untuk menjaga privasi data trading Anda di cloud.
-            * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP 6-digit via email untuk proses reset password yang aman dan terlindungi.
+            * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP via email (atau simulasi kode di layar) untuk proses reset password yang aman dan terlindungi.
             * **Validasi Password Lama:** Sistem secara otomatis mendeteksi dan menolak apabila Anda mencoba memasukkan password baru yang sama persis dengan password lama Anda.
             * **Mode Tampilan Responsif:** Anda dapat beralih antara **Mode Desktop (Lebar)** dan **Mode Kompak (HP / Mobile)** melalui pengaturan agar aplikasi tetap nyaman diakses lewat berbagai perangkat.
             """)

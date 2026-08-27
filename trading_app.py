@@ -14,7 +14,7 @@ from github import Github
 # ==========================================
 # 0. MODE MAINTENANCE (NYALAKAN/MATIKAN)
 # ==========================================
-IS_MAINTENANCE = False  # Ubah menjadi True jika ingin mengaktifkan mode pemeliharaan
+IS_MAINTENANCE = True  # Ubah menjadi True jika ingin mengaktifkan mode pemeliharaan
 
 if IS_MAINTENANCE:
     st.markdown("""

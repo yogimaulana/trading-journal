@@ -18,8 +18,6 @@ st.set_page_config(
 )
 
 # ==================== KUSTOM CSS & RESPONSIF OTOMATIS (HP & PC) ====================
-
-</script>
 st.markdown("""
     <style>
     .stApp {
@@ -143,13 +141,11 @@ st.markdown("""
         font-size: 16px !important;
     }
     
-    /* PENGATURAN HERO CONTAINER DENGAN EFEK GRID GARIS TRADING YANG JELAS */
+    /* PENGATURAN HERO CONTAINER DENGAN EFEK GRID TRADING (OPSI 1) */
     .hero-container {
-        background-color: rgba(17, 24, 39, 0.85);
-        background-image: 
-            linear-gradient(to right, rgba(0, 173, 181, 0.1) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(0, 173, 181, 0.1) 1px, transparent 1px);
-        background-size: 30px 30px;
+        background: linear-gradient(135deg, rgba(17, 24, 39, 0.9) 0%, rgba(31, 41, 55, 0.9) 100%),
+                    radial-gradient(circle, rgba(0, 173, 181, 0.1) 1px, transparent 1px);
+        background-size: 100% 100%, 20px 20px;
         border: 1px solid rgba(0, 173, 181, 0.35);
         padding: 3rem 2rem;
         border-radius: 16px;
@@ -157,7 +153,6 @@ st.markdown("""
         margin-bottom: 2rem;
         backdrop-filter: blur(10px);
         animation: pulseGlow 4s infinite ease-in-out;
-    }
     }
     
     .hero-title {

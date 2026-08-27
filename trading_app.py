@@ -18,6 +18,10 @@ st.set_page_config(
 )
 
 # ==================== KUSTOM CSS & RESPONSIF OTOMATIS (HP & PC) ====================
+st.markdown(
+    '<meta name="google-site-verification" content="8nBRDHFH6xq_Aj1s5BAeUIVsQUFeAfVq0FS20GGGty0" />',
+    unsafe_allow_html=True
+)
 st.markdown("""
     <style>
     .stApp {

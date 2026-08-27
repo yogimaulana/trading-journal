@@ -12,6 +12,22 @@ import plotly.express as px
 # ==========================================
 # 1. KONFIGURASI HALAMAN & TAMPILAN PROFESIONAL
 # ==========================================
+# ==========================================
+# MODE MAINTENANCE (NYALAKAN/MATIKAN)
+# ==========================================
+IS_MAINTENANCE = True  # Ubah menjadi False jika sudah selesai perbaikan
+
+if IS_MAINTENANCE:
+    st.markdown("""
+        <div style="text-align: center; padding: 5rem 1rem;">
+            <h1 style="color: #00ADB5; font-size: 2.5rem;">🚧 Situs Sedang Dalam Perbaikan 🚧</h1>
+            <p style="color: #9CA3AF; font-size: 1.2rem; margin-top: 1rem;">
+                Kami sedang melakukan pemeliharaan sistem dan peningkatan performa.<br>
+                Mohon kunjungi kembali beberapa saat lagi. Terima kasih atas kesabarannya!
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+    st.stop()  # Menghentikan seluruh proses aplikasi agar menu lain tidak bisa diakses
 st.set_page_config(
     page_title="Lensjourneyy · Professional Trading Journal & Risk MTRX",
     page_icon="📈",

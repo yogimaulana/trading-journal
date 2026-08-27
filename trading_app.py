@@ -33,6 +33,31 @@ st.markdown("""
     [data-testid="stToolbar"] {
         display: none !important;
     }
+    
+    /* Animasi Halus & Modern untuk Landing Page */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(15px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulseGlow {
+        0% { box-shadow: 0 0 15px rgba(0, 173, 181, 0.2); }
+        50% { box-shadow: 0 0 30px rgba(0, 173, 181, 0.5); }
+        100% { box-shadow: 0 0 15px rgba(0, 173, 181, 0.2); }
+    }
+    @keyframes floatIcon {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-8px); }
+        100% { transform: translateY(0px); }
+    }
+
+    .animated-hero {
+        animation: fadeIn 0.8s ease-out forwards;
+    }
+    .floating-badge {
+        animation: floatIcon 3s ease-in-out infinite;
+        display: inline-block;
+    }
+
     .trading-card {
         background: rgba(17, 24, 39, 0.7);
         border: 1px solid rgba(0, 173, 181, 0.2);
@@ -41,7 +66,13 @@ st.markdown("""
         box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
         backdrop-filter: blur(4px);
         margin-bottom: 1rem;
+        transition: transform 0.3s ease, border-color 0.3s ease;
     }
+    .trading-card:hover {
+        transform: translateY(-4px);
+        border-color: rgba(0, 173, 181, 0.6);
+    }
+    
     .stButton>button {
         width: 100%;
         border-radius: 8px;
@@ -57,7 +88,7 @@ st.markdown("""
     .stButton>button:hover {
         background: linear-gradient(135deg, #00c4ce 0%, #00939c 100%);
         box-shadow: 0 6px 20px rgba(0, 173, 181, 0.5);
-        border: none;
+        transform: translateY(-2px);
         color: white;
     }
     .stTextInput>div>div>input, .stNumberInput>div>div>input, .stSelectbox>div>div>div, .stTextArea>div>div>textarea {
@@ -69,34 +100,40 @@ st.markdown("""
     .hero-container {
         background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
         border: 1px solid rgba(0, 173, 181, 0.3);
-        padding: 2.5rem 2rem;
+        padding: 3rem 2rem;
         border-radius: 16px;
         text-align: center;
         margin-bottom: 2rem;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        animation: pulseGlow 4s infinite ease-in-out;
     }
     .hero-title {
         color: #00ADB5;
-        font-size: 2.2rem;
+        font-size: 2.3rem;
         font-weight: 800;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.8rem;
         letter-spacing: -0.5px;
     }
     .hero-subtitle {
         color: #9CA3AF;
-        font-size: 1.05rem;
-        margin-bottom: 1.5rem;
+        font-size: 1.1rem;
+        margin-bottom: 1.8rem;
+        line-height: 1.6;
     }
     .feature-badge {
         background-color: rgba(0, 173, 181, 0.15);
         color: #00ADB5;
-        padding: 6px 14px;
+        padding: 8px 16px;
         border-radius: 20px;
-        font-size: 0.85rem;
+        font-size: 0.9rem;
         font-weight: 600;
         display: inline-block;
-        margin: 4px;
+        margin: 6px;
         border: 1px solid rgba(0, 173, 181, 0.4);
+        transition: all 0.3s ease;
+    }
+    .feature-badge:hover {
+        background-color: rgba(0, 173, 181, 0.3);
+        transform: scale(1.05);
     }
     [data-testid="stMetric"] {
         background: rgba(17, 24, 39, 0.8);
@@ -290,14 +327,15 @@ if 'show_auth_screen' not in st.session_state:
 # ==================== HALAMAN LANDING & AUTHENTICATION ====================
 if not st.session_state.logged_in:
     if not st.session_state.show_auth_screen:
-        # ==================== LANDING PAGE PUBLIK ====================
+        # ==================== LANDING PAGE PUBLIK DENGAN ANIMASI INTERAKTIF ====================
         st.markdown("""
-            <div class="hero-container" style="padding: 3rem 2rem;">
-                <h1 style="color: #00ADB5; font-size: 2.4rem; font-weight: 800; margin-bottom: 0.5rem;">📈 Professional Trading Journal & Risk MTRX</h1>
-                <p style="color: #9CA3AF; font-size: 1.15rem; margin-bottom: 1.5rem;">
-                    Platform Pencatatan Jurnal & Manajemen Risiko Profesional untuk Trader Serius.
+            <div class="hero-container animated-hero">
+                <div class="floating-badge" style="font-size: 3rem; margin-bottom: 10px;">📈</div>
+                <h1 class="hero-title">Professional Trading Journal & Risk MTRX</h1>
+                <p class="hero-subtitle">
+                    Tingkatkan performa trading Anda dengan pencatatan jurnal terstruktur, kalkulator risiko anti-Margin Call, serta visualisasi kurva ekuitas real-time.
                 </p>
-                <div>
+                <div style="margin-top: 1.5rem;">
                     <span class="feature-badge">🛡️ Kalkulator Anti-MC</span>
                     <span class="feature-badge">📊 Equity Curve Real-Time</span>
                     <span class="feature-badge">📸 Galeri Screenshot Chart</span>
@@ -312,39 +350,45 @@ if not st.session_state.logged_in:
                 st.session_state.show_auth_screen = True
                 st.rerun()
 
-        st.markdown("---")
-        st.subheader("✨ Kenapa Harus Menggunakan Jurnal Ini?")
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("### ✨ Fitur Unggulan Platform")
         
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             st.markdown("""
-            * **🧮 Kalkulator Lot & Risiko Presisi**
-              Hitung ukuran posisi dan batas risiko otomatis untuk mencegah *over-leverage* dan akun terkena *Margin Call*.
-            * **📊 Dashboard & Equity Curve**
-              Pantau grafik pertumbuhan modal secara visual, rekapitulasi PnL bulanan, dan tingkat *win rate* secara *real-time*.
-            """)
+            <div class="trading-card">
+                <h4>🧮 Kalkulator Lot & Risiko Presisi</h4>
+                <p style="color: #9CA3AF; font-size: 0.95rem;">Hitung ukuran posisi dan batas risiko otomatis berdasarkan modal dan jarak Stop Loss untuk mencegah over-leverage.</p>
+            </div>
+            <div class="trading-card">
+                <h4>📊 Dashboard & Equity Curve</h4>
+                <p style="color: #9CA3AF; font-size: 0.95rem;">Pantau grafik pertumbuhan modal secara visual, rekapitulasi PnL bulanan, dan tingkat win rate secara real-time.</p>
+            </div>
+            """, unsafe_allow_html=True)
         with col_f2:
             st.markdown("""
-            * **📸 Galeri Screenshot Chart**
-              Simpan rekam jejak setup *entry* dan *exit* beserta gambar chart langsung ke dalam database cloud.
-            * **🔒 Privasi & Keamanan Terjaga**
-              Data transaksi dan riwayat trading setiap pengguna terisolasi dengan aman di dalam akun masing-masing.
-            """)
+            <div class="trading-card">
+                <h4>📸 Galeri Screenshot Chart</h4>
+                <p style="color: #9CA3AF; font-size: 0.95rem;">Simpan rekam jejak setup entry dan exit beserta gambar chart langsung ke dalam database cloud Supabase.</p>
+            </div>
+            <div class="trading-card">
+                <h4>🔒 Privasi & Keamanan Terjaga</h4>
+                <p style="color: #9CA3AF; font-size: 0.95rem;">Data transaksi dan riwayat trading setiap pengguna terisolasi dengan aman di dalam akun masing-masing.</p>
+            </div>
+            """, unsafe_allow_html=True)
 
         st.markdown("---")
-        st.markdown("<p style='text-align: center; color: #6c757d; font-size: 0.85rem;'>⚡ Powered by Lensjourneyy</p>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #6c757d; font-size: 0.85rem;'>⚡ Powered by Lensjourneyy · Professional Trading Suite</p>", unsafe_allow_html=True)
     
     else:
         # ==================== HALAMAN AUTH (LOGIN / REGISTER / FORGOT) ====================
         st.markdown("""
-            <div class="hero-container">
-                <div class="hero-title">📈 Professional Trading Journal & Risk MTRX</div>
-                <div class="hero-subtitle">Platform Pencatatan Jurnal & Manajemen Risiko Profesional</div>
+            <div class="hero-container animated-hero" style="padding: 2rem 1.5rem;">
+                <h1 class="hero-title" style="font-size: 1.8rem;">📈 Akses Workspace Trading</h1>
+                <p class="hero-subtitle" style="margin-bottom: 1rem;">Kelola jurnal, pantau risiko, dan evaluasi performa trading Anda.</p>
                 <div>
                     <span class="feature-badge">🛡️ Kalkulator Anti-MC</span>
-                    <span class="feature-badge">📊 Equity Curve Real-Time</span>
-                    <span class="feature-badge">📸 Galeri Screenshot Chart</span>
-                    <span class="feature-badge">🔒 Enkripsi Data Privat (Cloud)</span>
+                    <span class="feature-badge">📊 Equity Curve</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -761,7 +805,7 @@ else:
             
         with st.expander("🧮 2. Panduan Menu: Kalkulator Lot & Risiko"):
             st.markdown("""
-            * **Fungsi Utama:** Alat bantu perhitungan manajemen risiko (*Risk Management*) sebelum Anda membuka posisi di market agar terhindar dari *over-leverage*.
+            * **Fungsi Utama:** Alat bantu manajemen risiko (*Risk Management*) sebelum Anda membuka posisi di market agar terhindar dari *over-leverage*.
             * **Cara Penggunaan:**
                 1. Masukkan **Total Modal Akun ($)** yang Anda miliki saat ini.
                 2. Tentukan **Risiko Maksimal (%)** yang siap ditoleransi per transaksi (umumnya 1% - 2%).
@@ -857,10 +901,9 @@ else:
                         with st.container():
                             u_name = item.get("username", "Anonim")
                             u_rating = item.get("rating", "-")
-                            u_waktu_raw = item.get("created_at", "")
+                            u_waktu_raw = item.get("created_it", item.get("created_at", ""))
                             u_pesan = item.get("pesan", "")
                             
-                            # Konversi waktu dari UTC ke WIB (+7 jam)
                             try:
                                 if u_waktu_raw:
                                     dt_utc = pd.to_datetime(u_waktu_raw)

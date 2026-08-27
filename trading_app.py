@@ -17,12 +17,16 @@ st.set_page_config(
     layout="wide"
 )
 
-# ==================== KUSTOM CSS & MODERN GLASSMORPHISM THEME ====================
+# ==================== KUSTOM CSS & MODERN GLASSMORPHISM THEME + BACKGROUND ANIMATION ====================
 st.markdown("""
     <style>
     .stApp {
         background-color: #0b0f19;
         color: #f3f4f6;
+        background-image: 
+            radial-gradient(circle at 15% 20%, rgba(0, 173, 181, 0.08) 0%, transparent 40%),
+            radial-gradient(circle at 85% 80%, rgba(0, 126, 133, 0.08) 0%, transparent 40%);
+        background-attachment: fixed;
     }
     header[data-testid="stHeader"] {
         display: none !important;
@@ -41,13 +45,51 @@ st.markdown("""
     }
     @keyframes pulseGlow {
         0% { box-shadow: 0 0 15px rgba(0, 173, 181, 0.2); }
-        50% { box-shadow: 0 0 30px rgba(0, 173, 181, 0.5); }
+        50% { box-shadow: 0 0 35px rgba(0, 173, 181, 0.45); }
         100% { box-shadow: 0 0 15px rgba(0, 173, 181, 0.2); }
     }
     @keyframes floatIcon {
         0% { transform: translateY(0px); }
         50% { transform: translateY(-8px); }
         100% { transform: translateY(0px); }
+    }
+    @keyframes bgPulse {
+        0% { transform: scale(1); opacity: 0.3; }
+        50% { transform: scale(1.15); opacity: 0.6; }
+        100% { transform: scale(1); opacity: 0.3; }
+    }
+
+    /* Elemen Latar Belakang Animasi Partikel/Cahaya */
+    .bg-animation-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        z-index: -99;
+        pointer-events: none;
+    }
+    . glowing-orb {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(80px);
+        animation: bgPulse 8s infinite ease-in-out;
+    }
+    .orb-1 {
+        top: 10%;
+        left: 20%;
+        width: 300px;
+        height: 300px;
+        background: rgba(0, 173, 181, 0.12);
+    }
+    .orb-2 {
+        bottom: 15%;
+        right: 15%;
+        width: 350px;
+        height: 350px;
+        background: rgba(0, 126, 133, 0.1);
+        animation-delay: 4s;
     }
 
     .animated-hero {
@@ -59,18 +101,19 @@ st.markdown("""
     }
 
     .trading-card {
-        background: rgba(17, 24, 39, 0.7);
-        border: 1px solid rgba(0, 173, 181, 0.2);
+        background: rgba(17, 24, 39, 0.75);
+        border: 1px solid rgba(0, 173, 181, 0.25);
         padding: 1.5rem;
         border-radius: 12px;
         box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-        backdrop-filter: blur(4px);
+        backdrop-filter: blur(8px);
         margin-bottom: 1rem;
-        transition: transform 0.3s ease, border-color 0.3s ease;
+        transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
     }
     .trading-card:hover {
         transform: translateY(-4px);
-        border-color: rgba(0, 173, 181, 0.6);
+        border-color: rgba(0, 173, 181, 0.7);
+        box-shadow: 0 12px 40px 0 rgba(0, 173, 181, 0.2);
     }
     
     .stButton>button {
@@ -98,12 +141,13 @@ st.markdown("""
         border-radius: 8px !important;
     }
     .hero-container {
-        background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
-        border: 1px solid rgba(0, 173, 181, 0.3);
+        background: linear-gradient(135deg, rgba(17, 24, 39, 0.85) 0%, rgba(31, 41, 55, 0.85) 100%);
+        border: 1px solid rgba(0, 173, 181, 0.35);
         padding: 3rem 2rem;
         border-radius: 16px;
         text-align: center;
         margin-bottom: 2rem;
+        backdrop-filter: blur(10px);
         animation: pulseGlow 4s infinite ease-in-out;
     }
     .hero-title {
@@ -166,6 +210,12 @@ st.markdown("""
         border: 1px solid #374151;
     }
     </style>
+
+    <!-- HTML untuk Elemen Latar Belakang Animasi Orbit Cahaya -->
+    <div class="bg-animation-container">
+        <div class="glowing-orb orb-1"></div>
+        <div class="glowing-orb orb-2"></div>
+    </div>
 """, unsafe_allow_html=True)
 
 # ==================== PENGATURAN MODE TAMPILAN ====================
@@ -900,7 +950,7 @@ else:
                     for item in feedback_list:
                         with st.container():
                             u_name = item.get("username", "Anonim")
-                            u_rating = item.get("rating", "-")
+                            v_rating = item.get("rating", "-")
                             u_waktu_raw = item.get("created_it", item.get("created_at", ""))
                             u_pesan = item.get("pesan", "")
                             
@@ -914,7 +964,7 @@ else:
                             except Exception:
                                 u_waktu = u_waktu_raw
 
-                            st.markdown(f"**Pengguna:** `{u_name}` | **Rating:** {'⭐' * int(u_rating)} ({u_rating}/5)")
+                            st.markdown(f"**Pengguna:** `{u_name}` | **Rating:** {'⭐' * int(v_rating)} ({v_rating}/5)")
                             st.markdown(f"*Waktu:* `{u_waktu}`")
                             st.info(u_pesan)
                             st.markdown("---")

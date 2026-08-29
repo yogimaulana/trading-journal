@@ -372,67 +372,74 @@ def save_trade(username, row_data, file_name, file_bytes):
     except Exception as e:
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
-# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (JSON PARSING) ====================
+# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (RAPIDAPI FOREX FACTORY) ====================
 @st.cache_data(ttl=300)
 def fetch_realtime_economic_calendar(from_date, to_date):
-    """
-    Fungsi ini dirancang untuk mengambil data kalender ekonomi real-time via API eksternal 
-    berbasis JSON (misalnya Finnhub atau RapidAPI Economic Calendar).
-    """
     try:
-        # Coba ambil API key dari secrets (bisa disesuaikan dengan key provider pilihan Anda)
-        finnhub_key = st.secrets["finnhub"]["api_key"]
+        rapid_key = st.secrets["rapidapi"]["api_key"]
     except Exception:
-        finnhub_key = ""
+        rapid_key = ""
 
-    if not finnhub_key:
-        return None, "API Key belum dikonfigurasi di secrets.toml"
+    if not rapid_key:
+        return None, "RapidAPI Key belum dikonfigurasi di secrets.toml"
 
-    # URL endpoint (contoh menggunakan Finnhub atau bisa disesuaikan endpoint RapidAPI JSON)
-    url = f"https://finnhub.io/api/v1/calendar/economic?from={from_date}&to={to_date}&token={finnhub_key}"
+    url = "https://forex-factory-scraper1.p.rapidapi.com/get_real_time_calendar_details"
     
+    dt_from = pd.to_datetime(from_date)
+    
+    querystring = {
+        "year": str(dt_from.year),
+        "month": dt_from.strftime("%B"),
+        "day": str(dt_from.day),
+        "timezone": "GMT+07:00 Central Time (US & Canada)",
+        "time_format": "24h"
+    }
+
+    headers = {
+        "content-type": "application/json",
+        "X-RapidAPI-Key": rapid_key,
+        "X-RapidAPI-Host": "forex-factory-scraper1.p.rapidapi.com"
+    }
+
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, headers=headers, params=querystring, timeout=10)
         if response.status_code == 200:
             res_json = response.json()
             
-            # Menyesuaikan dengan struktur umum balikan data JSON API (List of objects atau key 'economicCalendar')
-            economic_events = res_json.get("economicCalendar", res_json if isinstance(res_json, list) else [])
+            events = res_json if isinstance(res_json, list) else res_json.get("data", res_json.get("result", []))
             
-            if not economic_events:
-                return pd.DataFrame(), f"Data JSON kosong atau rentang {from_date} s.d {to_date} dibatasi oleh server API."
+            if not events:
+                return pd.DataFrame(), f"Data kalender kosong untuk periode {from_date} s.d {to_date}."
             
-            df_api = pd.DataFrame(economic_events)
+            df_api = pd.DataFrame(events)
             formatted_data = []
             
             for _, row in df_api.iterrows():
-                # Ekstraksi field JSON secara fleksibel
-                date_val = str(row.get("date", row.get("time", "")))
-                date_str = date_val[:10] if len(date_val) >= 10 else "-"
-                time_str = date_val[11:16] if len(date_val) >= 16 else "00:00"
+                date_str = str(row.get("date", row.get("Date", "")))[:10]
+                time_str = str(row.get("time", row.get("Time", "00:00")))
                 
-                impact_val = str(row.get("impact", row.get("importance", "Medium")))
-                if impact_val.lower() in ["high", "3", "red", "high-impact"]:
+                impact_val = str(row.get("impact", row.get("Impact", "Medium")))
+                if "high" in impact_val.lower() or "red" in impact_val.lower() or "3" in impact_val:
                     dampak = "🔴 Tinggi"
-                elif impact_val.lower() in ["low", "1", "green"]:
+                elif "low" in impact_val.lower() or "green" in impact_val.lower() or "1" in impact_val:
                     dampak = "🟢 Rendah"
                 else:
                     dampak = "🟡 Sedang"
 
                 formatted_data.append({
-                    "Tanggal": date_str,
+                    "Tanggal": date_str if date_str else str(from_date),
                     "Waktu (WIB)": time_str,
-                    "Mata Uang": row.get("country", row.get("currency", "USD")),
-                    "Peristiwa / Berita Ekonomi": row.get("event", row.get("title", "Economic Release")),
+                    "Mata Uang": row.get("currency", row.get("Currency", "USD")),
+                    "Peristiwa / Berita Ekonomi": row.get("event", row.get("Event", "Economic Release")),
                     "Tingkat Dampak": dampak
                 })
             
             df_result = pd.DataFrame(formatted_data)
             return df_result, "Success"
         else:
-            return None, f"Gagal mengambil data JSON (HTTP Status: {response.status_code})"
+            return None, f"Gagal mengambil data dari RapidAPI (HTTP Status: {response.status_code})"
     except Exception as e:
-        return None, f"Error koneksi API JSON: {str(e)}"
+        return None, f"Error koneksi RapidAPI: {str(e)}"
 
 # ==================== SESSION STATE LOGIN ====================
 if 'logged_in' not in st.session_state:
@@ -879,8 +886,8 @@ else:
             st.info("Belum ada data riwayat trading di akun ini.")
 
     elif menu == "🌐 Sesi Pasar & Kalender Berita":
-        st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi (JSON API)")
-        st.markdown("Pantau jam operasional sesi pasar global serta jadwal rilis berita ekonomi berbasis data JSON API.")
+        st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi (RapidAPI)")
+        st.markdown("Pantau jam operasional sesi pasar global serta jadwal rilis berita ekonomi secara real-time.")
         st.markdown("---")
 
         now_wib = datetime.utcnow() + timedelta(hours=7)
@@ -921,17 +928,16 @@ else:
             st.metric("Sydney (Australia)", sydney_status, "05:00 - 14:00 WIB")
 
         st.markdown("---")
-        st.subheader("📅 Jadwal Berita Makroekonomi JSON API")
+        st.subheader("📅 Jadwal Berita Makroekonomi (Forex Factory via RapidAPI)")
         st.markdown(f"Tanggal Hari Ini: **{now_wib.strftime('%A, %d %B %Y')}**")
-        st.markdown("Pilih rentang tanggal di bawah ini untuk menarik data JSON dari server API secara dinamis:")
+        st.markdown("Pilih rentang tanggal di bawah ini untuk menarik data kalender ekonomi secara dinamis:")
 
-        # Filter interaktif rentang tanggal
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             default_start = now_wib.date()
             filter_from = st.date_input("Dari Tanggal", default_start)
         with col_f2:
-            default_end = now_wib.date() + timedelta(days=30)
+            default_end = now_wib.date() + timedelta(days=7)
             filter_to = st.date_input("Sampai Tanggal", default_end)
 
         df_news, api_msg = fetch_realtime_economic_calendar(
@@ -940,16 +946,16 @@ else:
         )
 
         if df_news is not None and not df_news.empty:
-            st.success(f"Berhasil memuat {len(df_news)} event dari format JSON API (Rentang: {filter_from} s.d {filter_to})")
+            st.success(f"Berhasil memuat {len(df_news)} event dari RapidAPI (Rentang: {filter_from} s.d {filter_to})")
             st.dataframe(df_news, use_container_width=True, hide_index=True)
         else:
-            if api_msg and "API Key" in api_msg:
+            if api_msg and "Key" in api_msg:
                 st.warning(f"⚠️ {api_msg}. Pastikan konfigurasi API key sudah benar di `secrets.toml`.")
             else:
                 st.info(f"ℹ️ {api_msg}")
 
         st.markdown("---")
-        st.info("💡 **Tips:** Data JSON akan diperbarui secara otomatis ketika Anda mengubah filter tanggal atau melakukan refresh halaman.")
+        st.info("💡 **Tips:** Data berita akan ditarik secara real-time dari server RapidAPI sesuai dengan rentang tanggal yang Anda tentukan.")
 
     elif menu == "📖 Panduan & Penjelasan Sistem":
         st.title("📖 Panduan & Penjelasan Sistem Trading Journal")
@@ -1005,7 +1011,7 @@ else:
 
         with st.expander("🌐 5. Panduan Menu: Sesi Pasar & Kalender Berita"):
             st.markdown("""
-            * **Fungsi Utama:** Menyediakan informasi mengenai status sesi bursa global serta kalender rilis berita ekonomi berbasis data JSON API yang dapat disaring fleksibel berdasarkan rentang tanggal.
+            * **Fungsi Utama:** Menyediakan informasi mengenai status sesi bursa global serta kalender rilis berita ekonomi secara real-time dari RapidAPI.
             """)
 
         with st.expander("🛠️ 6. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):

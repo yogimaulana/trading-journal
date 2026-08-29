@@ -373,6 +373,7 @@ def save_trade(username, row_data, file_name, file_bytes):
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
 # ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (RAPIDAPI) ====================
+# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (RAPIDAPI) ====================
 @st.cache_data(ttl=300)
 def fetch_realtime_economic_calendar(from_date, to_date):
     try:
@@ -383,17 +384,19 @@ def fetch_realtime_economic_calendar(from_date, to_date):
     if not rapid_key:
         return None, "RapidAPI Key belum dikonfigurasi di secrets.toml"
 
-    # Endpoint dasar RapidAPI untuk Forex Factory Scraper
     url = "https://forex-factory-scraper1.p.rapidapi.com/get_real_time_calendar_details"
     
     dt_from = pd.to_datetime(from_date)
     
-    # Parameter query standar format tanggal tunggal (YYYY-MM-DD) yang umumnya diterima endpoint scraper
+    # Mengirimkan year, month, dan day dalam format angka (integer/string angka)
     querystring = {
-        "date": dt_from.strftime("%Y-%m-%d")
+        "year": int(dt_from.year),
+        "month": int(dt_from.month),
+        "day": int(dt_from.day)
     }
 
     headers = {
+        "content-type": "application/json",
         "X-RapidAPI-Key": rapid_key,
         "X-RapidAPI-Host": "forex-factory-scraper1.p.rapidapi.com"
     }

@@ -5,8 +5,6 @@ import random
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import plotly.express as px
-from supabase import create_client, Client
 import requests
 
 # ==========================================
@@ -270,9 +268,10 @@ SUPABASE_KEY = st.secrets["supabase"]["key"]
 
 @st.cache_resource
 def init_supabase() -> Client:
+    from supabase import create_client
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
-supabase: Client = init_supabase()
+supabase = init_supabase()
 
 # ==================== FUNGSI DATABASE SUPABASE ====================
 def send_email_otp(receiver_email, code):
@@ -373,7 +372,7 @@ def save_trade(username, row_data, file_name, file_bytes):
     except Exception as e:
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
-# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FMP API - FIXED & STABLE) ====================
+# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FMP API) ====================
 @st.cache_data(ttl=600)
 def fetch_realtime_economic_calendar():
     try:
@@ -385,11 +384,8 @@ def fetch_realtime_economic_calendar():
         return None, "API Key FMP belum dikonfigurasi di secrets.toml"
 
     today_date = datetime.utcnow().date()
-    
-    # Menghitung rentang dari hari ini hingga 2 bulan ke depan
     from_date = today_date.strftime('%Y-%m-%d')
     
-    # Kalkulasi maju 2 bulan ke depan
     if today_date.month in [11, 12]:
         target_year = today_date.year + 1
         target_month = (today_date.month + 2) % 12
@@ -398,13 +394,11 @@ def fetch_realtime_economic_calendar():
         target_year = today_date.year
         target_month = today_date.month + 2
 
-    # Ambil hari terakhir pada 2 bulan ke depan
     temp_date = datetime(target_year, target_month, 1).date()
     next_month_temp = temp_date.replace(day=28) + timedelta(days=4)
     last_day_target = next_month_temp - timedelta(days=next_month_temp.day)
     to_date = last_day_target.strftime('%Y-%m-%d')
 
-    # Menggunakan endpoint v3 standar FMP yang lebih stabil untuk rentang tanggal
     url = f"https://financialmodelingprep.com/api/v3/economic_calendar?from={from_date}&to={to_date}&apikey={fmp_key}"
     
     try:
@@ -412,9 +406,7 @@ def fetch_realtime_economic_calendar():
         if response.status_code == 200:
             economic_events = response.json()
             
-            # Validasi jika respons bukan list atau kosong
             if not economic_events or not isinstance(economic_events, list):
-                # Fallback: Coba tarik data untuk 7 hari ke depan jika rentang 2 bulan kosong/belum rilis di server
                 fallback_to = (today_date + timedelta(days=7)).strftime('%Y-%m-%d')
                 url_fallback = f"https://financialmodelingprep.com/api/v3/economic_calendar?from={from_date}&to={fallback_to}&apikey={fmp_key}"
                 res_fallback = requests.get(url_fallback, timeout=10)
@@ -449,7 +441,6 @@ def fetch_realtime_economic_calendar():
                 })
             
             df_result = pd.DataFrame(formatted_data)
-            # Urutkan berdasarkan tanggal dan waktu terdekat
             df_result = df_result.sort_values(by=["Tanggal", "Waktu (WIB)"]).reset_index(drop=True)
             return df_result, "Success"
         else:
@@ -475,11 +466,11 @@ if not st.session_state.logged_in:
                 <div class="floating-badge" style="font-size: 3rem; margin-bottom: 10px;">📈</div>
                 <h1 class="hero-title">Professional Trading Journal & Risk MTRX</h1>
                 <p class="hero-subtitle">
-                    Tingkatkan performa trading Anda dengan pencatatan jurnal terstruktur, kalkulator risiko anti-Margin Call, serta visualisasi kurva ekuitas real-time.
+                    Tingkatkan performa trading Anda dengan pencatatan jurnal terstruktur, kalkulator risiko anti-Margin Call, serta rekapitulasi performa real-time.
                 </p>
                 <div style="margin-top: 1.5rem;">
                     <span class="feature-badge">🛡️ Kalkulator Anti-MC</span>
-                    <span class="feature-badge">📊 Equity Curve Real-Time</span>
+                    <span class="feature-badge">📊 Rekapitulasi Metrik</span>
                     <span class="feature-badge">📸 Galeri Screenshot Chart</span>
                     <span class="feature-badge">🔒 Enkripsi Data Privat (Cloud)</span>
                 </div>
@@ -503,8 +494,8 @@ if not st.session_state.logged_in:
                 <p style="color: #9CA3AF; font-size: 0.95rem;">Hitung ukuran posisi dan batas risiko otomatis berdasarkan modal dan jarak Stop Loss untuk mencegah over-leverage.</p>
             </div>
             <div class="trading-card">
-                <h4>📊 Dashboard & Equity Curve</h4>
-                <p style="color: #9CA3AF; font-size: 0.95rem;">Pantau grafik pertumbuhan modal secara visual, rekapitulasi PnL bulanan, dan tingkat win rate secara real-time.</p>
+                <h4>📊 Dashboard & Metrik Performa</h4>
+                <p style="color: #9CA3AF; font-size: 0.95rem;">Pantau rekapitulasi PnL bulanan, tingkat win rate, serta performa aset secara real-time.</p>
             </div>
             """, unsafe_allow_html=True)
         with col_f2:
@@ -529,7 +520,7 @@ if not st.session_state.logged_in:
                 <p class="hero-subtitle" style="margin-bottom: 1rem;">Kelola jurnal, pantau risiko, dan evaluasi performa trading Anda secara mulus di HP maupun PC.</p>
                 <div>
                     <span class="feature-badge">🛡️ Kalkulator Anti-MC</span>
-                    <span class="feature-badge">📊 Equity Curve</span>
+                    <span class="feature-badge">📊 Rekapitulasi Performa</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -671,7 +662,7 @@ else:
 
     if menu == "📊 Dashboard & Analitik":
         st.title("📊 Dashboard & Analitik Performa Trading")
-        st.markdown("Analisis menyeluruh pertumbuhan modal, win rate per strategi, dan performa aset secara visual.")
+        st.markdown("Analisis menyeluruh rekapitulasi performa trading, win rate per strategi, dan performa aset.")
         
         if len(df_raw) > 0:
             df = df_raw.copy()
@@ -698,42 +689,8 @@ else:
                 st.metric(label="Profit Factor", value=f"{profit_factor:.2f}")
                 
             st.markdown("---")
-            st.subheader("📈 Grafik Pertumbuhan Ekuitas (Equity Curve)")
+            st.subheader("📅 Rekapitulasi & Perhitungan PnL per Bulan")
             
-            df = df.sort_values("Tanggal")
-            df["Cumulative P/L"] = df["P/L ($)"].cumsum()
-            
-            fig = px.area(
-                df, 
-                x="Tanggal", 
-                y="Cumulative P/L", 
-                markers=True,
-                labels={"Cumulative P/L": "Total Akumulasi P/L ($)", "Tanggal": "Tanggal Transaksi"}
-            )
-            
-            fig.update_traces(
-                line=dict(color="#00ADB5", width=3),
-                marker=dict(size=8, color="#EEEEEE", line=dict(color="#00ADB5", width=2)),
-                fill='tozeroy',
-                fillcolor='rgba(0, 173, 181, 0.15)'
-            )
-            
-            fig.update_layout(
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#CCCCCC", family="sans-serif"),
-                xaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.08)", zeroline=False),
-                yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.08)", zeroline=False),
-                margin=dict(l=20, r=20, t=30, b=20),
-                hovermode="x unified"
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-
-            st.markdown("---")
-            st.subheader("📅 Rekapitulasi & Perhitungan Otomatis PnL per Bulan")
-            
-            # Perbaikan: Konversi format Bulan menjadi string kategori agar sumbu X chart terbaca benar
             df["Bulan"] = df["Tanggal"].dt.to_period("M").astype(str)
             monthly_summary = df.groupby("Bulan").agg(
                 Total_Trade=("P/L ($)", "count"),
@@ -746,11 +703,6 @@ else:
             monthly_summary.columns = ["Bulan", "Jumlah Trade", "Net P/L Bulan ($)", "Trade Profit", "Trade Loss", "Win Rate (%)"]
 
             st.dataframe(monthly_summary, use_container_width=True)
-
-            # Perbaikan Grafik P/L Bulanan menggunakan st.bar_chart dengan set_index agar sumbu X bersih dari rentang mikrodetik
-            st.markdown("### Perbandingan Net P/L Bulanan")
-            df_chart = monthly_summary.set_index("Bulan")[["Net P/L Bulan ($)"]]
-            st.bar_chart(df_chart)
             
             st.markdown("---")
             col_a, col_b = st.columns(2)
@@ -938,7 +890,7 @@ else:
         df_news, api_msg = fetch_realtime_economic_calendar()
 
         if df_news is not None and not df_news.empty:
-            st.dataframe(df_news, use_container_width=True, hide_index=True)
+            st.dataframe(df_news, use_keyword=False, use_container_width=True, hide_index=True)
         else:
             if api_msg and "API Key" in api_msg:
                 st.warning(f"⚠️ {api_msg}. Pastikan Anda telah memasukkan `[fmp] api_key` di `secrets.toml`.")
@@ -971,14 +923,13 @@ else:
         
         with st.expander("📊 1. Panduan Menu: Dashboard & Analitik"):
             st.markdown("""
-            * **Fungsi Utama:** Menyediakan ringkasan performa trading secara visual dan menyeluruh bagi akun Anda.
-            * **Perhitungan Otomatis PnL per Bulan:** Sistem secara otomatis mengelompokkan data transaksi berdasarkan bulan (`YYYY-MM`) untuk menghitung total net PnL, jumlah trade, win/loss trade, serta tingkat win rate bulanan beserta grafik batangnya.
+            * **Fungsi Utama:** Menyediakan ringkasan performa trading dan rekapitulasi data bagi akun Anda.
+            * **Perhitungan Otomatis PnL per Bulan:** Sistem secara otomatis mengelompokkan data transaksi berdasarkan bulan (`YYYY-MM`) untuk menghitung total net PnL, jumlah trade, win/loss trade, serta tingkat win rate bulanan.
             * **Metrik Utama (KPI):**
                 * **Net P/L Bersih ($):** Total akumulasi keuntungan bersih atau kerugian bersih dari seluruh transaksi tertutup.
                 * **Total Posisi:** Jumlah total transaksi yang telah dicatat dan dieksekusi.
                 * **Win Rate (%):** Tingkat akurasi persentase kemenangan berdasarkan jumlah posisi profit berbanding total trade.
                 * **Profit Factor:** Perbandingan antara *Gross Profit* (total profit kotor) dibagi *Gross Loss* (total loss kotor). Nilai > 1.5 mengindikasikan performa trading yang sehat.
-            * **Equity Curve (Grafik Area):** Grafik interaktif yang merekam naik-turunnya akumulasi modal akun dari waktu ke waktu berdasarkan tanggal transaksi.
             * **Performa Pair & Strategi:** Tabel ringkas yang memetakan aset atau strategi mana yang memberikan kontribusi profit terbesar.
             """)
             

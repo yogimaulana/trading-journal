@@ -372,8 +372,7 @@ def save_trade(username, row_data, file_name, file_bytes):
     except Exception as e:
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
-# ==================== FUNGSI FETCH KALENDER EKONOMI (RAPIDAPI) ====================
-# ==================== FUNGSI FETCH KALENDER EKONOMI (RAPIDAPI) ====================
+# ==================== FUNGSI FETCH KALENDER EKONOMI (RAPIDAPI DENGAN AUTO-DISCOVERY) ====================
 @st.cache_data(ttl=300)
 def fetch_realtime_economic_calendar(from_date, to_date):
     try:
@@ -384,9 +383,6 @@ def fetch_realtime_economic_calendar(from_date, to_date):
     if not rapid_key:
         return None, "RapidAPI Key belum dikonfigurasi di secrets.toml"
 
-    # Menggunakan endpoint umum berformat garis hubung (-) yang merupakan standar slug RapidAPI
-    url = "https://forex-factory-scraper1.p.rapidapi.com/get-calendar-details"
-    
     dt_from = pd.to_datetime(from_date)
     
     querystring = {
@@ -405,8 +401,38 @@ def fetch_realtime_economic_calendar(from_date, to_date):
         "x-rapidapi-key": rapid_key
     }
 
+    # Daftar variasi URL endpoint yang umum digunakan oleh Forex Factory Scraper di RapidAPI
+    possible_urls = [
+        "https://forex-factory-scraper1.p.rapidapi.com/get_calendar_details",
+        "https://forex-factory-scraper1.p.rapidapi.com/get-calendar-details",
+        "https://forex-factory-scraper1.p.rapidapi.com/calendar",
+        "https://forex-factory-scraper1.p.rapidapi.com/get_real_time_calendar_details",
+        "https://forex-factory-scraper1.p.rapidapi.com/"
+    ]
+
+    response = None
+    success_url = ""
+
+    # Mencoba berbagai kemungkinan URL secara otomatis
+    for url in possible_urls:
+        try:
+            res = requests.get(url, headers=headers, params=querystring, timeout=15)
+            # Jika status 200 atau bukan 404, anggap endpoint ditemukan
+            if res.status_code == 200:
+                response = res
+                success_url = url
+                break
+            elif res.status_code != 404:
+                response = res
+                success_url = url
+                break
+        except Exception:
+            continue
+
+    if response is None:
+        return None, "Gagal koneksi RapidAPI: Semua variasi URL endpoint tidak merespons (404/Timeout)."
+
     try:
-        response = requests.get(url, headers=headers, params=querystring, timeout=30)
         if response.status_code == 200:
             res_json = response.json()
             events = res_json if isinstance(res_json, list) else res_json.get("data", res_json.get("result", []))
@@ -440,9 +466,9 @@ def fetch_realtime_economic_calendar(from_date, to_date):
             df_result = pd.DataFrame(formatted_data)
             return df_result, "Success"
         else:
-            return None, f"Gagal mengambil data dari RapidAPI (HTTP Status: {response.status_code} - {response.text})"
+            return None, f"Gagal dari RapidAPI (URL: {success_url} | Status: {response.status_code} - {response.text})"
     except Exception as e:
-        return None, f"Error koneksi RapidAPI: {str(e)}"
+        return None, f"Error parsing data RapidAPI: {str(e)}"
     
 # ==================== SESSION STATE LOGIN ====================
 if 'logged_in' not in st.session_state:

@@ -383,21 +383,23 @@ def fetch_realtime_economic_calendar(from_date, to_date):
     if not rapid_key:
         return None, "RapidAPI Key belum dikonfigurasi di secrets.toml"
 
-    # Menggunakan URL root standar RapidAPI untuk mencegah mismatch endpoint path
     url = "https://forex-factory-scraper1.p.rapidapi.com/get_real_time_calendar_details"
     
     dt_from = pd.to_datetime(from_date)
     
-    # Parameter query yang disesuaikan agar kompatibel dengan handler RapidAPI
+    # Menyesuaikan parameter dengan format yang didukung oleh endpoint RapidAPI ini
     querystring = {
         "year": str(dt_from.year),
         "month": dt_from.strftime("%B"),
         "day": str(dt_from.day),
+        "currency": "ALL",
+        "event_name": "ALL",
         "timezone": "GMT",
         "time_format": "24h"
     }
 
     headers = {
+        "content-type": "application/json",
         "X-RapidAPI-Key": rapid_key,
         "X-RapidAPI-Host": "forex-factory-scraper1.p.rapidapi.com"
     }
@@ -440,7 +442,6 @@ def fetch_realtime_economic_calendar(from_date, to_date):
             return None, f"Gagal mengambil data dari RapidAPI (HTTP Status: {response.status_code})"
     except Exception as e:
         return None, f"Error koneksi RapidAPI: {str(e)}"
-
 # ==================== SESSION STATE LOGIN ====================
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False

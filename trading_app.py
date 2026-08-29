@@ -383,35 +383,29 @@ def fetch_realtime_economic_calendar(from_date, to_date):
     if not rapid_key:
         return None, "RapidAPI Key belum dikonfigurasi di secrets.toml"
 
+    # Endpoint dasar RapidAPI untuk Forex Factory Scraper
     url = "https://forex-factory-scraper1.p.rapidapi.com/get_real_time_calendar_details"
     
     dt_from = pd.to_datetime(from_date)
     
-    # Menyesuaikan parameter dengan format yang didukung oleh endpoint RapidAPI ini
+    # Parameter query standar format tanggal tunggal (YYYY-MM-DD) yang umumnya diterima endpoint scraper
     querystring = {
-        "year": str(dt_from.year),
-        "month": dt_from.strftime("%B"),
-        "day": str(dt_from.day),
-        "currency": "ALL",
-        "event_name": "ALL",
-        "timezone": "GMT",
-        "time_format": "24h"
+        "date": dt_from.strftime("%Y-%m-%d")
     }
 
     headers = {
-        "content-type": "application/json",
         "X-RapidAPI-Key": rapid_key,
         "X-RapidAPI-Host": "forex-factory-scraper1.p.rapidapi.com"
     }
 
     try:
-        response = requests.get(url, headers=headers, params=querystring, timeout=10)
+        response = requests.get(url, headers=headers, params=querystring, timeout=15)
         if response.status_code == 200:
             res_json = response.json()
             events = res_json if isinstance(res_json, list) else res_json.get("data", res_json.get("result", []))
             
             if not events:
-                return pd.DataFrame(), f"Data kalender kosong untuk periode {from_date} s.d {to_date}."
+                return pd.DataFrame(), f"Data kalender kosong untuk tanggal {from_date}."
             
             df_api = pd.DataFrame(events)
             formatted_data = []
@@ -439,7 +433,7 @@ def fetch_realtime_economic_calendar(from_date, to_date):
             df_result = pd.DataFrame(formatted_data)
             return df_result, "Success"
         else:
-            return None, f"Gagal mengambil data dari RapidAPI (HTTP Status: {response.status_code})"
+            return None, f"Gagal mengambil data dari RapidAPI (HTTP Status: {response.status_code} - {response.text})"
     except Exception as e:
         return None, f"Error koneksi RapidAPI: {str(e)}"
 # ==================== SESSION STATE LOGIN ====================

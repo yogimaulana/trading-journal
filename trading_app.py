@@ -1,4 +1,4 @@
-[cite: 3]import streamlit as st
+import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import random
@@ -380,7 +380,7 @@ def fetch_realtime_economic_calendar():
     try:
         finnhub_key = st.secrets["finnhub"]["api_key"]
     except Exception:
-        finnhub_key = "" # Fallback atau kosong jika belum diatur
+        finnhub_key = ""
 
     if not finnhub_key:
         return None, "API Key Finnhub belum dikonfigurasi di secrets.toml"
@@ -395,17 +395,13 @@ def fetch_realtime_economic_calendar():
                 return pd.DataFrame(), "Tidak ada data event ditemukan."
             
             df_api = pd.DataFrame(economic_events)
-            # Normalisasi kolom jika tersedia dari Finnhub
-            # Format umum Finnhub: event, country, date, actual, previous, estimate, impact
             formatted_data = []
             for _, row in df_api.iterrows():
-                # Ubah tanggal ke format WIB/Lokal jika perlu
                 date_str = str(row.get("date", ""))[:10]
                 time_str = str(row.get("date", ""))[11:16]
                 if not time_str:
                     time_str = "00:00"
                 
-                # Ubah level dampak angka/string ke indikator visual
                 impact_val = row.get("impact", "Medium")
                 if str(impact_val).lower() in ["high", "3", "red"]:
                     dampak = "🔴 Tinggi"
@@ -880,9 +876,8 @@ else:
         st.markdown("Pantau jam operasional sesi pasar global serta jadwal rilis berita ekonomi berdampak tinggi (*High-Impact News*) secara *real-time* dari server finansial global.")
         st.markdown("---")
 
-        # Logika pengecekan waktu & hari (Senin - Jumat)
         now_wib = datetime.utcnow() + timedelta(hours=7)
-        current_day = now_wib.weekday() # 0=Senin, ..., 5=Sabtu, 6=Minggu
+        current_day = now_wib.weekday()
         is_weekend = current_day >= 5
 
         current_hour = now_wib.hour
@@ -896,7 +891,7 @@ else:
             end_val = end_h * 60 + end_m
             if start_val < end_val:
                 return "Buka" if start_val <= current_time_val <= end_val else "Tutup"
-            else: # Melewati tengah malam
+            else:
                 return "Buka" if current_time_val >= start_val or current_time_val <= end_val else "Tutup"
 
         tokyo_status = check_market_status(8, 0, 17, 0)
@@ -923,7 +918,6 @@ else:
         st.markdown(f"Tanggal Hari Ini: **{now_wib.strftime('%A, %d %B %Y')}**")
         st.markdown("Berikut adalah jadwal rilis data ekonomi langsung ditarik dari API server luar secara otomatis:")
 
-        # Tarik data real-time via API
         df_news, api_msg = fetch_realtime_economic_calendar()
 
         if df_news is not None and not df_news.empty:
@@ -934,7 +928,6 @@ else:
             else:
                 st.info("ℹ️ Tidak ada jadwal berita real-time untuk rentang hari ini. Menampilkan data simulasi terkini:")
 
-            # Fallback data jika API key belum diisi atau server kosong
             today_str = now_wib.strftime('%Y-%m-%d')
             next_day_str = (now_wib + timedelta(days=1)).strftime('%Y-%m-%d')
             data_fallback = {

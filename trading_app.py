@@ -373,7 +373,7 @@ def save_trade(username, row_data, file_name, file_bytes):
     except Exception as e:
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
-# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FMP API) ====================
+# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FMP API - RENTANG PER BULAN) ====================
 @st.cache_data(ttl=600)
 def fetch_realtime_economic_calendar():
     try:
@@ -385,8 +385,14 @@ def fetch_realtime_economic_calendar():
         return None, "API Key FMP belum dikonfigurasi di secrets.toml"
 
     today_date = datetime.utcnow().date()
-    from_date = today_date.strftime('%Y-%m-%d')
-    to_date = (today_date + timedelta(days=3)).strftime('%Y-%m-%d')
+    
+    # Mengatur rentang dari tanggal 1 bulan ini sampai akhir bulan ini
+    from_date = today_date.replace(day=1).strftime('%Y-%m-%d')
+    
+    # Mencari hari terakhir di bulan berjalan secara otomatis
+    next_month = today_date.replace(day=28) + timedelta(days=4)
+    last_day_of_month = next_month - timedelta(days=next_month.day)
+    to_date = last_day_of_month.strftime('%Y-%m-%d')
 
     url = f"https://financialmodelingprep.com/stable/economic-calendar?from={from_date}&to={to_date}&apikey={fmp_key}"
     try:
@@ -394,7 +400,7 @@ def fetch_realtime_economic_calendar():
         if response.status_code == 200:
             economic_events = response.json()
             if not economic_events or not isinstance(economic_events, list):
-                return pd.DataFrame(), "Tidak ada data event ditemukan."
+                return pd.DataFrame(), "Tidak ada data event ditemukan untuk bulan ini."
             
             df_api = pd.DataFrame(economic_events)
             formatted_data = []
@@ -425,7 +431,6 @@ def fetch_realtime_economic_calendar():
             return None, f"Gagal mengambil data dari API (HTTP Status: {response.status_code})"
     except Exception as e:
         return None, f"Error koneksi API: {str(e)}"
-
 # ==================== SESSION STATE LOGIN ====================
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False

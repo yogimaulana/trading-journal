@@ -256,20 +256,13 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# ==================== KONFIGURASI EMAIL & TELEGRAM (SECRETS) ====================
+# ==================== KONFIGURASI EMAIL (SECRETS) ====================
 try:
     EMAIL_SENDER = st.secrets["email"]["sender"]
     EMAIL_PASSWORD = st.secrets["email"]["password"]
 except Exception:
     EMAIL_SENDER = "azumimaulana36@gmail.com"
     EMAIL_PASSWORD = "kfud dalb ztal kolp"
-
-try:
-    TELEGRAM_BOT_TOKEN = st.secrets["telegram"]["bot_token"]
-    TELEGRAM_CHAT_ID = st.secrets["telegram"]["chat_id"]
-except Exception:
-    TELEGRAM_BOT_TOKEN = ""
-    TELEGRAM_CHAT_ID = ""
 
 # ==================== KONEKSI SUPABASE ====================
 SUPABASE_URL = st.secrets["supabase"]["url"]
@@ -298,24 +291,6 @@ def send_email_otp(receiver_email, code):
         return True, "Kode verifikasi berhasil dikirim!"
     except Exception as e:
         return False, f"Gagal mengirim email: {str(e)}"
-
-def send_telegram_message(message):
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        return False, "Token Bot atau Chat ID Telegram belum dikonfigurasi di secrets.toml"
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    try:
-        response = requests.post(url, json=payload, timeout=10)
-        if response.status_code == 200:
-            return True, "Pesan berhasil dikirim ke Telegram Lensjourneyy!"
-        else:
-            return False, f"Gagal mengirim ke Telegram (HTTP {response.status_code}): {response.text}"
-    except Exception as e:
-        return False, f"Error koneksi Telegram: {str(e)}"
 
 def check_user(username, password):
     try:
@@ -477,7 +452,6 @@ if not st.session_state.logged_in:
                     <span class="feature-badge">🛡️ Kalkulator Anti-MC</span>
                     <span class="feature-badge">📊 Equity Curve Real-Time</span>
                     <span class="feature-badge">📸 Galeri Screenshot Chart</span>
-                    <span class="feature-badge">📢 Integrasi Telegram Channel</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -506,8 +480,8 @@ if not st.session_state.logged_in:
         with col_f2:
             st.markdown("""
             <div class="trading-card">
-                <h4>📢 Broadcast Sinyal & Update Telegram</h4>
-                <p style="color: #9CA3AF; font-size: 0.95rem;">Kirimkan analisis setup teknikal dan update market langsung ke komunitas Telegram <b>Lensjourneyy</b> secara instan.</p>
+                <h4>🌐 Kalender Ekonomi & Sesi Market</h4>
+                <p style="color: #9CA3AF; font-size: 0.95rem;">Pantau status buka-tutup bursa global serta jadwal rilis berita ekonomi berdampak tinggi (*High-Impact News*) secara real-time.</p>
             </div>
             <div class="trading-card">
                 <h4>🔒 Privasi & Keamanan Terjaga</h4>
@@ -525,7 +499,7 @@ if not st.session_state.logged_in:
                 <p class="hero-subtitle" style="margin-bottom: 1rem;">Kelola jurnal, pantau risiko, dan evaluasi performa trading Anda secara mulus di HP maupun PC.</p>
                 <div>
                     <span class="feature-badge">🛡️ Kalkulator Anti-MC</span>
-                    <span class="feature-badge">📢 Telegram Broadcast</span>
+                    <span class="feature-badge">📊 Analisis Performa</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -655,7 +629,6 @@ else:
             "➕ Input Jurnal & Screenshot", 
             "📋 Riwayat & Kalender", 
             "🌐 Sesi Pasar & Kalender Berita",
-            "📢 Kirim Sinyal & Update Telegram",
             "📖 Panduan & Penjelasan Sistem",
             "💬 Masukan & Feedback"
         ],
@@ -974,41 +947,6 @@ else:
         st.markdown("---")
         st.info("💡 **Tips Trading:** Hindari membuka posisi baru atau pastikan *Stop Loss* Anda terpasang dengan disiplin menjelang waktu rilis berita berharkat merah (🔴 Tinggi).")
 
-    elif menu == "📢 Kirim Sinyal & Update Telegram":
-        st.title("📢 Kirim Sinyal & Update ke Telegram Channel")
-        st.markdown("Kirimkan analisis setup teknikal, pandangan market, atau rekap harian langsung ke kanal Telegram **Lensjourneyy**.")
-        st.markdown("---")
-
-        with st.form("form_telegram_broadcast"):
-            tg_title = st.text_input("Judul / Topik Sinyal", value="📊 Lensjourneyy Market Setup & Update")
-            tg_pair_choice = st.selectbox("Instrumen / Aset", ["XAUUSD (Gold)", "BTCUSD (Bitcoin)", "EURUSD", "GBPUSD", "USDJPY", "All Markets"])
-            tg_setup_type = st.selectbox("Tipe Analisis", ["Smart Money Concepts (SMC)", "Price Action Setup", "Breakout Strategy", "Daily Market Review"])
-            tg_message_body = st.text_area(
-                "Isi Pesan / Catatan Sinyal",
-                placeholder="Tuliskan detail analisis, area Order Block (OB), Entry Zone, dan Take Profit di sini..."
-            )
-            
-            submitted_tg = st.form_submit_button("🚀 Broadcast Sinyal ke Telegram Lensjourneyy")
-
-            if submitted_tg:
-                if not tg_message_body.strip():
-                    st.warning("⚠️ Isi pesan tidak boleh kosong!")
-                else:
-                    formatted_msg = (
-                        f"🚀 *{tg_title}*\n\n"
-                        f"📌 *Aset:* `{tg_pair_choice}`\n"
-                        f"🎯 *Strategi:* `{tg_setup_type}`\n\n"
-                        f"{tg_message_body}\n\n"
-                        f"--- \n"
-                        f"_Published via Lensjourneyy Trading Suite_"
-                    )
-                    ok, resp_msg = send_telegram_message(formatted_msg)
-                    if ok:
-                        st.success(f"🎉 {resp_msg}")
-                    else:
-                        st.warning(f"⚠️ {resp_msg}")
-                        st.code(formatted_msg, language="markdown")
-
     elif menu == "📖 Panduan & Penjelasan Sistem":
         st.title("📖 Panduan & Penjelasan Sistem Trading Journal")
         st.markdown("Pusat informasi dan dokumentasi komprehensif agar Anda dapat menguasai seluruh fungsi menu aplikasi.")
@@ -1066,12 +1004,7 @@ else:
             * **Fungsi Utama:** Menyediakan informasi *real-time* mengenai status buka/tutup sesi bursa keuangan global utama (Tokyo, London, New York, Sydney) serta kalender rilis berita ekonomi berdampak tinggi (*High-Impact News*) berbasis API agar trader dapat mengantisipasi volatilitas harga secara tepat.
             """)
 
-        with st.expander("📢 6. Panduan Menu: Kirim Sinyal & Update Telegram"):
-            st.markdown("""
-            * **Fungsi Utama:** Memungkinkan Anda melakukan broadcast atau meneruskan update setup trading, analisis teknikal SMC, dan rekapitulasi market langsung ke grup atau channel Telegram **Lensjourneyy** secara instan.
-            """)
-
-        with st.expander("🛠️ 7. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):
+        with st.expander("🛠️ 6. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):
             st.markdown("""
             * **Registrasi & Login Akun:** Setiap akun diamankan dengan aman untuk menjaga privasi data trading Anda di cloud.
             * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP via email (atau simulasi kode di layar) untuk proses reset password yang aman dan terlindungi.

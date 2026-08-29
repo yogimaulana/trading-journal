@@ -372,7 +372,7 @@ def save_trade(username, row_data, file_name, file_bytes):
     except Exception as e:
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
-# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (RAPIDAPI) ====================
+# ==================== FUNGSI FETCH KALENDER EKONOMI (RAPIDAPI) ====================
 @st.cache_data(ttl=300)
 def fetch_realtime_economic_calendar(from_date, to_date):
     try:
@@ -383,68 +383,67 @@ def fetch_realtime_economic_calendar(from_date, to_date):
     if not rapid_key:
         return None, "RapidAPI Key belum dikonfigurasi di secrets.toml"
 
-    url = "https://forex-factory-scraper1.p.rapidapi.com/get_real_time_calendar_details"
+    # Menyesuaikan dengan endpoint yang aktif di dashboard Anda
+    url = "https://forex-factory-scraper1.p.rapidapi.com/get_historical_calendar_details"
     
     dt_from = pd.to_datetime(from_date)
     
+    # Parameter lengkap sesuai contoh cURL pada dashboard RapidAPI
     querystring = {
         "year": int(dt_from.year),
         "month": int(dt_from.month),
-        "day": int(dt_from.day)
+        "day": int(dt_from.day),
+        "currency": "ALL",
+        "event_name": "ALL",
+        "timezone": "GMT-06:00 Central Time (US & Canada)",
+        "time_format": "12h"
     }
 
     headers = {
-        "content-type": "application/json",
-        "X-RapidAPI-Key": rapid_key,
-        "X-RapidAPI-Host": "forex-factory-scraper1.p.rapidapi.com"
+        "Content-Type": "application/json",
+        "x-rapidapi-host": "forex-factory-scraper1.p.rapidapi.com",
+        "x-rapidapi-key": rapid_key
     }
 
-    # Melakukan percobaan hingga 2 kali jika terjadi timeout
-    for attempt in range(2):
-        try:
-            # Memperpanjang timeout menjadi 30 detik agar server memiliki waktu lebih longgar
-            response = requests.get(url, headers=headers, params=querystring, timeout=30)
-            if response.status_code == 200:
-                res_json = response.json()
-                events = res_json if isinstance(res_json, list) else res_json.get("data", res_json.get("result", []))
+    try:
+        response = requests.get(url, headers=headers, params=querystring, timeout=30)
+        if response.status_code == 200:
+            res_json = response.json()
+            events = res_json if isinstance(res_json, list) else res_json.get("data", res_json.get("result", []))
+            
+            if not events:
+                return pd.DataFrame(), f"Data kalender kosong untuk tanggal {from_date}."
+            
+            df_api = pd.DataFrame(events)
+            formatted_data = []
+            
+            for _, row in df_api.iterrows():
+                date_str = str(row.get("date", row.get("Date", "")))[:10]
+                time_str = str(row.get("time", row.get("Time", "00:00")))
                 
-                if not events:
-                    return pd.DataFrame(), f"Data kalender kosong untuk tanggal {from_date}."
-                
-                df_api = pd.DataFrame(events)
-                formatted_data = []
-                
-                for _, row in df_api.iterrows():
-                    date_str = str(row.get("date", row.get("Date", "")))[:10]
-                    time_str = str(row.get("time", row.get("Time", "00:00")))
-                    
-                    impact_val = str(row.get("impact", row.get("Impact", "Medium")))
-                    if "high" in impact_val.lower() or "red" in impact_val.lower() or "3" in impact_val:
-                        dampak = "🔴 Tinggi"
-                    elif "low" in impact_val.lower() or "green" in impact_val.lower() or "1" in impact_val:
-                        dampak = "🟢 Rendah"
-                    else:
-                        dampak = "🟡 Sedang"
+                impact_val = str(row.get("impact", row.get("Impact", "Medium")))
+                if "high" in impact_val.lower() or "red" in impact_val.lower() or "3" in impact_val:
+                    dampak = "🔴 Tinggi"
+                elif "low" in impact_val.lower() or "green" in impact_val.lower() or "1" in impact_val:
+                    dampak = "🟢 Rendah"
+                else:
+                    dampak = "🟡 Sedang"
 
-                    formatted_data.append({
-                        "Tanggal": date_str if date_str else str(from_date),
-                        "Waktu (WIB)": time_str,
-                        "Mata Uang": row.get("currency", row.get("Currency", "USD")),
-                        "Peristiwa / Berita Ekonomi": row.get("event", row.get("Event", "Economic Release")),
-                        "Tingkat Dampak": dampak
-                    })
-                
-                df_result = pd.DataFrame(formatted_data)
-                return df_result, "Success"
-            else:
-                return None, f"Gagal mengambil data dari RapidAPI (HTTP Status: {response.status_code})"
-        except requests.exceptions.Timeout:
-            if attempt == 1:
-                return None, "Error koneksi RapidAPI: Server memakan waktu terlalu lama merespons (Timeout)."
-        except Exception as e:
-            return None, f"Error koneksi RapidAPI: {str(e)}"
+                formatted_data.append({
+                    "Tanggal": date_str if date_str else str(from_date),
+                    "Waktu (WIB)": time_str,
+                    "Mata Uang": row.get("currency", row.get("Currency", "USD")),
+                    "Peristiwa / Berita Ekonomi": row.get("event", row.get("Event", "Economic Release")),
+                    "Tingkat Dampak": dampak
+                })
+            
+            df_result = pd.DataFrame(formatted_data)
+            return df_result, "Success"
+        else:
+            return None, f"Gagal mengambil data dari RapidAPI (HTTP Status: {response.status_code} - {response.text})"
+    except Exception as e:
+        return None, f"Error koneksi RapidAPI: {str(e)}"
     
-    return None, "Error koneksi RapidAPI: Timeout setelah beberapa percobaan."
 # ==================== SESSION STATE LOGIN ====================
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False

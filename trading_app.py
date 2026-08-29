@@ -274,6 +274,63 @@ def init_supabase() -> Client:
 
 supabase: Client = init_supabase()
 
+# ==================== FUNGSI FETCH FMP ECONOMIC CALENDAR ====================
+@st.cache_data(ttl=600)
+def fetch_fmp_economic_calendar():
+    try:
+        fmp_key = st.secrets["fmp"]["api_key"]
+    except Exception:
+        fmp_key = "DEMO"
+
+    today_str = datetime.utcnow().strftime('%Y-%m-%d')
+    end_str = (datetime.utcnow() + timedelta(days=3)).strftime('%Y-%m-%d')
+    
+    url = f"https://financialmodelingprep.com/api/v3/economic-calendar?from={today_str}&to={end_str}&apikey={fmp_key}"
+    
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if not data or not isinstance(data, list):
+                return pd.DataFrame(), "Tidak ada data event ditemukan."
+            
+            df = pd.DataFrame(data)
+            formatted = []
+            for _, row in df.iterrows():
+                raw_date = str(row.get("date", ""))
+                try:
+                    dt_utc = datetime.strptime(raw_date[:19], "%Y-%m-%d %H:%M:%S")
+                    dt_wib = dt_utc + timedelta(hours=7)
+                    date_val = dt_wib.strftime('%Y-%m-%d')
+                    time_val = dt_wib.strftime('%H:%M')
+                except Exception:
+                    date_val = raw_date[:10]
+                    time_val = "00:00"
+
+                impact_raw = str(row.get("impact", "")).lower()
+                if "high" in impact_raw or "3" in impact_raw:
+                    dampak = "🔴 Tinggi"
+                elif "low" in impact_raw or "1" in impact_raw:
+                    dampak = "🟢 Rendah"
+                else:
+                    dampak = "🟡 Sedang"
+
+                formatted.append({
+                    "Tanggal": date_val,
+                    "Waktu (WIB)": time_val,
+                    "Mata Uang": row.get("country", row.get("currency", "USD")),
+                    "Peristiwa Ekonomi": row.get("event", "-"),
+                    "Tingkat Dampak": dampak,
+                    "Aktual": row.get("actual", "-"),
+                    "Prediksi": row.get("estimate", "-")
+                })
+            
+            return pd.DataFrame(formatted), "Success"
+        else:
+            return None, f"Gagal mengambil data (HTTP {response.status_code})"
+    except Exception as e:
+        return None, f"Error koneksi: {str(e)}"
+
 # ==================== FUNGSI HELPER & DATABASE ====================
 def send_email_otp(receiver_email, code):
     try:
@@ -426,7 +483,7 @@ if not st.session_state.logged_in:
             st.markdown("""
             <div class="trading-card">
                 <h4>🌐 Kalender Ekonomi & Sesi Market</h4>
-                <p style="color: #9CA3AF; font-size: 0.95rem;">Pantau status buka-tutup bursa global serta jadwal rilis berita ekonomi berdampak tinggi (*High-Impact News*) secara real-time.</p>
+                <p style="color: #9CA3AF; font-size: 0.95rem;">Pantau status buka-tutup bursa global serta jadwal rilis berita ekonomi berdampak tinggi (*High-Impact News*) dari API finansial profesional.</p>
             </div>
             <div class="trading-card">
                 <h4>🔒 Privasi & Keamanan Terjaga</h4>
@@ -818,7 +875,7 @@ else:
 
     elif menu == "🌐 Sesi Pasar & Kalender Berita":
         st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi")
-        st.markdown("Pantau jam operasional sesi pasar global serta kalender ekonomi real-time langsung dari widget resmi TradingView.")
+        st.markdown("Pantau jam operasional sesi pasar global serta kalender berita makroekonomi real-time dari Financial Modeling Prep API.")
         st.markdown("---")
 
         now_wib = datetime.utcnow() + timedelta(hours=7)
@@ -859,29 +916,34 @@ else:
             st.metric("Sydney (Australia)", sydney_status, "05:00 - 14:00 WIB")
 
         st.markdown("---")
-        st.subheader("📅 Live Economic Calendar (TradingView)")
-        st.markdown("Tabel kalender ekonomi di bawah ini disinkronkan secara langsung dari server TradingView:")
+        st.subheader("📅 Live Economic Calendar (FMP API)")
+        st.markdown(f"Tanggal Hari Ini (WIB): **{now_wib.strftime('%A, %d %B %Y')}**")
+        st.markdown("Berikut adalah jadwal rilis data ekonomi berdampak tinggi yang ditarik langsung secara otomatis:")
 
-        tradingview_widget_html = """
-        <div class="tradingview-widget-container" style="height:600px;width:100%">
-          <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
-          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-events.js" async>
-          {
-          "colorTheme": "dark",
-          "isTransparent": true,
-          "width": "100%",
-          "height": "600",
-          "locale": "id",
-          "importanceFilter": "-1,0,1",
-          "currencyFilter": "USD,EUR,GBP,JPY,AUD,CAD,XAU"
-        }
-          </script>
-        </div>
-        """
-        st.components.v1.html(tradingview_widget_html, height=620)
+        df_news, api_msg = fetch_fmp_economic_calendar()
+
+        if df_news is not None and not df_news.empty:
+            st.dataframe(df_news, use_container_width=True, hide_index=True)
+        else:
+            if api_msg and "Gagal" in api_msg:
+                st.warning(f"⚠️ {api_msg}. Pastikan konfigurasi API key FMP Anda valid.")
+            else:
+                st.info(f"ℹ️ {api_msg}")
+
+            today_str = now_wib.strftime('%Y-%m-%d')
+            data_fallback = {
+                "Tanggal": [today_str],
+                "Waktu (WIB)": ["--:--"],
+                "Mata Uang": ["USD"],
+                "Peristiwa Ekonomi": ["Tidak ada jadwal rilis berita mayor aktif saat ini."],
+                "Tingkat Dampak": ["🟢 Rendah"],
+                "Aktual": ["-"],
+                "Prediksi": ["-"]
+            }
+            st.dataframe(pd.DataFrame(data_fallback), use_container_width=True, hide_index=True)
 
         st.markdown("---")
-        st.info("💡 **Tips Trading:** Selalu perhatikan rilis berita dengan volatilitas tinggi sebelum mengeksekusi posisi atau pastikan Stop Loss Anda terpasang dengan disiplin.")
+        st.info("💡 **Tips Trading:** Hindari membuka posisi baru atau pastikan *Stop Loss* terpasang disiplin menjelang waktu rilis berita berdampak tinggi (🔴 Tinggi).")
 
     elif menu == "📖 Panduan & Penjelasan Sistem":
         st.title("📖 Panduan & Penjelasan Sistem Trading Journal")
@@ -937,7 +999,7 @@ else:
 
         with st.expander("🌐 5. Panduan Menu: Sesi Pasar & Kalender Berita"):
             st.markdown("""
-            * **Fungsi Utama:** Menyediakan informasi interaktif mengenai status buka/tutup sesi bursa keuangan global utama (Tokyo, London, New York, Sydney) serta kalender rilis berita ekonomi berdampak tinggi (*High-Impact News*) langsung dari widget resmi TradingView.
+            * **Fungsi Utama:** Menyediakan informasi interaktif mengenai status buka/tutup sesi bursa keuangan global utama (Tokyo, London, New York, Sydney) serta kalender rilis berita ekonomi berdampak tinggi (*High-Impact News*) langsung dari API FMP yang terstruktur rapi.
             """)
 
         with st.expander("🛠️ 6. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):

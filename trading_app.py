@@ -142,7 +142,6 @@ st.markdown("""
         font-size: 16px !important;
     }
     
-    /* PENGATURAN HERO CONTAINER DENGAN EFEK GRID GARIS TRADING YANG JELAS */
     .hero-container {
         background-color: rgba(17, 24, 39, 0.85);
         background-image: 
@@ -385,7 +384,12 @@ def fetch_realtime_economic_calendar():
     if not finnhub_key:
         return None, "API Key Finnhub belum dikonfigurasi di secrets.toml"
 
-    url = f"https://finnhub.io/api/v1/calendar/economic?token={finnhub_key}"
+    # Menggunakan rentang tanggal aktual (hari ini hingga 3 hari ke depan)
+    today_date = datetime.utcnow().date()
+    from_date = today_date.strftime('%Y-%m-%d')
+    to_date = (today_date + timedelta(days=3)).strftime('%Y-%m-%d')
+
+    url = f"https://finnhub.io/api/v1/calendar/economic?from={from_date}&to={to_date}&token={finnhub_key}"
     try:
         response = requests.get(url, timeout=10)
         if response.status_code == 200:
@@ -438,7 +442,6 @@ if 'show_auth_screen' not in st.session_state:
 # ==================== HALAMAN LANDING & AUTHENTICATION ====================
 if not st.session_state.logged_in:
     if not st.session_state.show_auth_screen:
-        # ==================== LANDING PAGE PUBLIK ====================
         st.markdown("""
             <div class="hero-container animated-hero">
                 <div class="floating-badge" style="font-size: 3rem; margin-bottom: 10px;">📈</div>
@@ -492,7 +495,6 @@ if not st.session_state.logged_in:
         st.markdown("<p style='text-align: center; color: #6c757d; font-size: 0.85rem;'>⚡ Powered by Lensjourneyy · Professional Trading Suite</p>", unsafe_allow_html=True)
     
     else:
-        # ==================== HALAMAN AUTH (LOGIN / REGISTER / FORGOT) ====================
         st.markdown("""
             <div class="hero-container animated-hero" style="padding: 2rem 1.5rem;">
                 <h1 class="hero-title" style="font-size: 1.8rem;">📈 Akses Workspace Trading</h1>
@@ -924,20 +926,25 @@ else:
             st.dataframe(df_news, use_container_width=True, hide_index=True)
         else:
             if api_msg and "API Key" in api_msg:
-                st.warning(f"⚠️ {api_msg}. Pastikan Anda telah memasukkan `[finnhub] api_key` di `secrets.toml`. Menggunakan data cadangan (*fallback*):")
+                st.warning(f"⚠️ {api_msg}. Pastikan Anda telah memasukkan `[finnhub] api_key` di `secrets.toml`.")
             else:
-                st.info("ℹ️ Tidak ada jadwal berita real-time untuk rentang hari ini. Menampilkan data simulasi terkini:")
+                st.info("ℹ️ Tidak ada rilis data berita baru yang terjadwal untuk saat ini.")
 
-            today_str = now_wib.strftime('%Y-%m-%d')
-            next_day_str = (now_wib + timedelta(days=1)).strftime('%Y-%m-%d')
-            data_fallback = {
-                "Tanggal": [today_str, today_str, next_day_str],
-                "Waktu (WIB)": ["19:30", "21:00", "23:00"],
-                "Mata Uang": ["USD", "USD", "EUR"],
-                "Peristiwa / Berita Ekonomi": ["Non-Farm Payrolls (NFP)", "ISM Manufacturing PMI", "ECB President Speech"],
-                "Tingkat Dampak": ["🔴 Tinggi", "🔴 Tinggi", "🟡 Sedang"]
-            }
-            st.dataframe(pd.DataFrame(data_fallback), use_container_width=True, hide_index=True)
+            if is_weekend:
+                data_fallback = {
+                    "Keterangan": ["Pasar Finansial Libur Akhir Pekan (Weekend)", "Tidak ada rilis berita ekonomi berdampak tinggi hari ini."],
+                }
+                st.dataframe(pd.DataFrame(data_fallback), use_container_width=True, hide_index=True)
+            else:
+                today_str = now_wib.strftime('%Y-%m-%d')
+                data_fallback = {
+                    "Tanggal": [today_str],
+                    "Waktu (WIB)": ["--:--"],
+                    "Mata Uang": ["ALL"],
+                    "Peristiwa / Berita Ekonomi": ["Tidak ada jadwal berita mayor untuk saat ini."],
+                    "Tingkat Dampak": ["🟢 Rendah"]
+                }
+                st.dataframe(pd.DataFrame(data_fallback), use_container_width=True, hide_index=True)
 
         st.markdown("---")
         st.info("💡 **Tips Trading:** Hindari membuka posisi baru atau pastikan *Stop Loss* Anda terpasang dengan disiplin menjelang waktu rilis berita berharkat merah (🔴 Tinggi).")

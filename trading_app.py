@@ -1,4 +1,4 @@
-import streamlit as st
+[cite: 3]import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import random

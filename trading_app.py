@@ -39,6 +39,7 @@ st.markdown("""
         display: none !important;
     }
     
+    /* Animasi & Efek Visual Modern */
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(15px); }
         to { opacity: 1; transform: translateY(0); }
@@ -255,13 +256,20 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# ==================== KONFIGURASI EMAIL (SMTP) ====================
+# ==================== KONFIGURASI EMAIL & TELEGRAM (SECRETS) ====================
 try:
     EMAIL_SENDER = st.secrets["email"]["sender"]
     EMAIL_PASSWORD = st.secrets["email"]["password"]
 except Exception:
     EMAIL_SENDER = "azumimaulana36@gmail.com"
     EMAIL_PASSWORD = "kfud dalb ztal kolp"
+
+try:
+    TELEGRAM_BOT_TOKEN = st.secrets["telegram"]["bot_token"]
+    TELEGRAM_CHAT_ID = st.secrets["telegram"]["chat_id"]
+except Exception:
+    TELEGRAM_BOT_TOKEN = ""
+    TELEGRAM_CHAT_ID = ""
 
 # ==================== KONEKSI SUPABASE ====================
 SUPABASE_URL = st.secrets["supabase"]["url"]
@@ -273,7 +281,7 @@ def init_supabase() -> Client:
 
 supabase: Client = init_supabase()
 
-# ==================== FUNGSI DATABASE SUPABASE ====================
+# ==================== FUNGSI HELPER & DATABASE ====================
 def send_email_otp(receiver_email, code):
     try:
         msg = MIMEMultipart()
@@ -290,6 +298,24 @@ def send_email_otp(receiver_email, code):
         return True, "Kode verifikasi berhasil dikirim!"
     except Exception as e:
         return False, f"Gagal mengirim email: {str(e)}"
+
+def send_telegram_message(message):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return False, "Token Bot atau Chat ID Telegram belum dikonfigurasi di secrets.toml"
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        if response.status_code == 200:
+            return True, "Pesan berhasil dikirim ke Telegram Lensjourneyy!"
+        else:
+            return False, f"Gagal mengirim ke Telegram (HTTP {response.status_code}): {response.text}"
+    except Exception as e:
+        return False, f"Error koneksi Telegram: {str(e)}"
 
 def check_user(username, password):
     try:
@@ -372,104 +398,61 @@ def save_trade(username, row_data, file_name, file_bytes):
     except Exception as e:
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
-# ==================== FUNGSI FETCH KALENDER EKONOMI (RAPIDAPI DENGAN AUTO-DISCOVERY) ====================
-@st.cache_data(ttl=300)
-def fetch_realtime_economic_calendar(from_date, to_date):
+# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FINNHUB API) ====================
+@st.cache_data(ttl=600)
+def fetch_realtime_economic_calendar():
     try:
-        rapid_key = st.secrets["rapidapi"]["api_key"]
+        finnhub_key = st.secrets["finnhub"]["api_key"]
     except Exception:
-        rapid_key = ""
+        finnhub_key = ""
 
-    if not rapid_key:
-        return None, "RapidAPI Key belum dikonfigurasi di secrets.toml"
+    if not finnhub_key:
+        return None, "API Key Finnhub belum dikonfigurasi di secrets.toml"
 
-    dt_from = pd.to_datetime(from_date)
-    
-    querystring = {
-        "year": int(dt_from.year),
-        "month": int(dt_from.month),
-        "day": int(dt_from.day),
-        "currency": "ALL",
-        "event_name": "ALL",
-        "timezone": "GMT",
-        "time_format": "24h"
-    }
+    today_date = datetime.utcnow().date()
+    from_date = today_date.strftime('%Y-%m-%d')
+    to_date = (today_date + timedelta(days=3)).strftime('%Y-%m-%d')
 
-    headers = {
-        "Content-Type": "application/json",
-        "x-rapidapi-host": "forex-factory-scraper1.p.rapidapi.com",
-        "x-rapidapi-key": rapid_key
-    }
-
-    # Daftar variasi URL endpoint yang umum digunakan oleh Forex Factory Scraper di RapidAPI
-    possible_urls = [
-        "https://forex-factory-scraper1.p.rapidapi.com/get_calendar_details",
-        "https://forex-factory-scraper1.p.rapidapi.com/get-calendar-details",
-        "https://forex-factory-scraper1.p.rapidapi.com/calendar",
-        "https://forex-factory-scraper1.p.rapidapi.com/get_real_time_calendar_details",
-        "https://forex-factory-scraper1.p.rapidapi.com/"
-    ]
-
-    response = None
-    success_url = ""
-
-    # Mencoba berbagai kemungkinan URL secara otomatis
-    for url in possible_urls:
-        try:
-            res = requests.get(url, headers=headers, params=querystring, timeout=15)
-            # Jika status 200 atau bukan 404, anggap endpoint ditemukan
-            if res.status_code == 200:
-                response = res
-                success_url = url
-                break
-            elif res.status_code != 404:
-                response = res
-                success_url = url
-                break
-        except Exception:
-            continue
-
-    if response is None:
-        return None, "Gagal koneksi RapidAPI: Semua variasi URL endpoint tidak merespons (404/Timeout)."
-
+    url = f"https://finnhub.io/api/v1/calendar/economic?from={from_date}&to={to_date}&token={finnhub_key}"
     try:
+        response = requests.get(url, timeout=10)
         if response.status_code == 200:
             res_json = response.json()
-            events = res_json if isinstance(res_json, list) else res_json.get("data", res_json.get("result", []))
+            economic_events = res_json.get("economicCalendar", [])
+            if not economic_events:
+                return pd.DataFrame(), "Tidak ada data event ditemukan."
             
-            if not events:
-                return pd.DataFrame(), f"Data kalender kosong untuk tanggal {from_date}."
-            
-            df_api = pd.DataFrame(events)
+            df_api = pd.DataFrame(economic_events)
             formatted_data = []
-            
             for _, row in df_api.iterrows():
-                date_str = str(row.get("date", row.get("Date", "")))[:10]
-                time_str = str(row.get("time", row.get("Time", "00:00")))
+                date_str = str(row.get("date", ""))[:10]
+                time_str = str(row.get("date", ""))[11:16]
+                if not time_str:
+                    time_str = "00:00"
                 
-                impact_val = str(row.get("impact", row.get("Impact", "Medium")))
-                if "high" in impact_val.lower() or "red" in impact_val.lower() or "3" in impact_val:
+                impact_val = row.get("impact", "Medium")
+                if str(impact_val).lower() in ["high", "3", "red"]:
                     dampak = "🔴 Tinggi"
-                elif "low" in impact_val.lower() or "green" in impact_val.lower() or "1" in impact_val:
+                elif str(impact_val).lower() in ["low", "1", "green"]:
                     dampak = "🟢 Rendah"
                 else:
                     dampak = "🟡 Sedang"
 
                 formatted_data.append({
-                    "Tanggal": date_str if date_str else str(from_date),
+                    "Tanggal": date_str,
                     "Waktu (WIB)": time_str,
-                    "Mata Uang": row.get("currency", row.get("Currency", "USD")),
-                    "Peristiwa / Berita Ekonomi": row.get("event", row.get("Event", "Economic Release")),
+                    "Mata Uang": row.get("country", "USD"),
+                    "Peristiwa / Berita Ekonomi": row.get("event", "Economic Data Release"),
                     "Tingkat Dampak": dampak
                 })
             
             df_result = pd.DataFrame(formatted_data)
             return df_result, "Success"
         else:
-            return None, f"Gagal dari RapidAPI (URL: {success_url} | Status: {response.status_code} - {response.text})"
+            return None, f"Gagal mengambil data dari API (HTTP Status: {response.status_code})"
     except Exception as e:
-        return None, f"Error parsing data RapidAPI: {str(e)}"
-    
+        return None, f"Error koneksi API: {str(e)}"
+
 # ==================== SESSION STATE LOGIN ====================
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
@@ -494,7 +477,7 @@ if not st.session_state.logged_in:
                     <span class="feature-badge">🛡️ Kalkulator Anti-MC</span>
                     <span class="feature-badge">📊 Equity Curve Real-Time</span>
                     <span class="feature-badge">📸 Galeri Screenshot Chart</span>
-                    <span class="feature-badge">🔒 Enkripsi Data Privat (Cloud)</span>
+                    <span class="feature-badge">📢 Integrasi Telegram Channel</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -523,8 +506,8 @@ if not st.session_state.logged_in:
         with col_f2:
             st.markdown("""
             <div class="trading-card">
-                <h4>📸 Galeri Screenshot Chart</h4>
-                <p style="color: #9CA3AF; font-size: 0.95rem;">Simpan rekam jejak setup entry dan exit beserta gambar chart langsung ke dalam database cloud Supabase.</p>
+                <h4>📢 Broadcast Sinyal & Update Telegram</h4>
+                <p style="color: #9CA3AF; font-size: 0.95rem;">Kirimkan analisis setup teknikal dan update market langsung ke komunitas Telegram <b>Lensjourneyy</b> secara instan.</p>
             </div>
             <div class="trading-card">
                 <h4>🔒 Privasi & Keamanan Terjaga</h4>
@@ -542,7 +525,7 @@ if not st.session_state.logged_in:
                 <p class="hero-subtitle" style="margin-bottom: 1rem;">Kelola jurnal, pantau risiko, dan evaluasi performa trading Anda secara mulus di HP maupun PC.</p>
                 <div>
                     <span class="feature-badge">🛡️ Kalkulator Anti-MC</span>
-                    <span class="feature-badge">📊 Equity Curve</span>
+                    <span class="feature-badge">📢 Telegram Broadcast</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -672,6 +655,7 @@ else:
             "➕ Input Jurnal & Screenshot", 
             "📋 Riwayat & Kalender", 
             "🌐 Sesi Pasar & Kalender Berita",
+            "📢 Kirim Sinyal & Update Telegram",
             "📖 Panduan & Penjelasan Sistem",
             "💬 Masukan & Feedback"
         ],
@@ -915,8 +899,8 @@ else:
             st.info("Belum ada data riwayat trading di akun ini.")
 
     elif menu == "🌐 Sesi Pasar & Kalender Berita":
-        st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi (RapidAPI)")
-        st.markdown("Pantau jam operasional sesi pasar global serta jadwal rilis berita ekonomi secara real-time.")
+        st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi (Real-Time API)")
+        st.markdown("Pantau jam operasional sesi pasar global serta jadwal rilis berita ekonomi berdampak tinggi (*High-Impact News*) secara *real-time* dari server finansial global.")
         st.markdown("---")
 
         now_wib = datetime.utcnow() + timedelta(hours=7)
@@ -957,34 +941,73 @@ else:
             st.metric("Sydney (Australia)", sydney_status, "05:00 - 14:00 WIB")
 
         st.markdown("---")
-        st.subheader("📅 Jadwal Berita Makroekonomi (Forex Factory via RapidAPI)")
+        st.subheader("📅 Jadwal Berita Makroekonomi Real-Time (Finnhub API)")
         st.markdown(f"Tanggal Hari Ini: **{now_wib.strftime('%A, %d %B %Y')}**")
-        st.markdown("Pilih rentang tanggal di bawah ini untuk menarik data kalender ekonomi secara dinamis:")
+        st.markdown("Berikut adalah jadwal rilis data ekonomi langsung ditarik dari API server luar secara otomatis:")
 
-        col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            default_start = now_wib.date()
-            filter_from = st.date_input("Dari Tanggal", default_start)
-        with col_f2:
-            default_end = now_wib.date() + timedelta(days=7)
-            filter_to = st.date_input("Sampai Tanggal", default_end)
-
-        df_news, api_msg = fetch_realtime_economic_calendar(
-            filter_from.strftime('%Y-%m-%d'), 
-            filter_to.strftime('%Y-%m-%d')
-        )
+        df_news, api_msg = fetch_realtime_economic_calendar()
 
         if df_news is not None and not df_news.empty:
-            st.success(f"Berhasil memuat {len(df_news)} event dari RapidAPI (Rentang: {filter_from} s.d {filter_to})")
             st.dataframe(df_news, use_container_width=True, hide_index=True)
         else:
-            if api_msg and "Key" in api_msg:
-                st.warning(f"⚠️ {api_msg}. Pastikan konfigurasi API key sudah benar di `secrets.toml`.")
+            if api_msg and "API Key" in api_msg:
+                st.warning(f"⚠️ {api_msg}. Pastikan Anda telah memasukkan `[finnhub] api_key` di `secrets.toml`.")
             else:
-                st.info(f"ℹ️ {api_msg}")
+                st.info("ℹ️ Tidak ada rilis data berita baru yang terjadwal untuk saat ini.")
+
+            if is_weekend:
+                data_fallback = {
+                    "Keterangan": ["Pasar Finansial Libur Akhir Pekan (Weekend)", "Tidak ada rilis berita ekonomi berdampak tinggi hari ini."],
+                }
+                st.dataframe(pd.DataFrame(data_fallback), use_container_width=True, hide_index=True)
+            else:
+                today_str = now_wib.strftime('%Y-%m-%d')
+                data_fallback = {
+                    "Tanggal": [today_str],
+                    "Waktu (WIB)": ["--:--"],
+                    "Mata Uang": ["ALL"],
+                    "Peristiwa / Berita Ekonomi": ["Tidak ada jadwal berita mayor untuk saat ini."],
+                    "Tingkat Dampak": ["🟢 Rendah"]
+                }
+                st.dataframe(pd.DataFrame(data_fallback), use_container_width=True, hide_index=True)
 
         st.markdown("---")
-        st.info("💡 **Tips:** Data berita akan ditarik secara real-time dari server RapidAPI sesuai dengan rentang tanggal yang Anda tentukan.")
+        st.info("💡 **Tips Trading:** Hindari membuka posisi baru atau pastikan *Stop Loss* Anda terpasang dengan disiplin menjelang waktu rilis berita berharkat merah (🔴 Tinggi).")
+
+    elif menu == "📢 Kirim Sinyal & Update Telegram":
+        st.title("📢 Kirim Sinyal & Update ke Telegram Channel")
+        st.markdown("Kirimkan analisis setup teknikal, pandangan market, atau rekap harian langsung ke kanal Telegram **Lensjourneyy**.")
+        st.markdown("---")
+
+        with st.form("form_telegram_broadcast"):
+            tg_title = st.text_input("Judul / Topik Sinyal", value="📊 Lensjourneyy Market Setup & Update")
+            tg_pair_choice = st.selectbox("Instrumen / Aset", ["XAUUSD (Gold)", "BTCUSD (Bitcoin)", "EURUSD", "GBPUSD", "USDJPY", "All Markets"])
+            tg_setup_type = st.selectbox("Tipe Analisis", ["Smart Money Concepts (SMC)", "Price Action Setup", "Breakout Strategy", "Daily Market Review"])
+            tg_message_body = st.text_area(
+                "Isi Pesan / Catatan Sinyal",
+                placeholder="Tuliskan detail analisis, area Order Block (OB), Entry Zone, dan Take Profit di sini..."
+            )
+            
+            submitted_tg = st.form_submit_button("🚀 Broadcast Sinyal ke Telegram Lensjourneyy")
+
+            if submitted_tg:
+                if not tg_message_body.strip():
+                    st.warning("⚠️ Isi pesan tidak boleh kosong!")
+                else:
+                    formatted_msg = (
+                        f"🚀 *{tg_title}*\n\n"
+                        f"📌 *Aset:* `{tg_pair_choice}`\n"
+                        f"🎯 *Strategi:* `{tg_setup_type}`\n\n"
+                        f"{tg_message_body}\n\n"
+                        f"--- \n"
+                        f"_Published via Lensjourneyy Trading Suite_"
+                    )
+                    ok, resp_msg = send_telegram_message(formatted_msg)
+                    if ok:
+                        st.success(f"🎉 {resp_msg}")
+                    else:
+                        st.warning(f"⚠️ {resp_msg}")
+                        st.code(formatted_msg, language="markdown")
 
     elif menu == "📖 Panduan & Penjelasan Sistem":
         st.title("📖 Panduan & Penjelasan Sistem Trading Journal")
@@ -1040,10 +1063,15 @@ else:
 
         with st.expander("🌐 5. Panduan Menu: Sesi Pasar & Kalender Berita"):
             st.markdown("""
-            * **Fungsi Utama:** Menyediakan informasi mengenai status sesi bursa global serta kalender rilis berita ekonomi secara real-time dari RapidAPI.
+            * **Fungsi Utama:** Menyediakan informasi *real-time* mengenai status buka/tutup sesi bursa keuangan global utama (Tokyo, London, New York, Sydney) serta kalender rilis berita ekonomi berdampak tinggi (*High-Impact News*) berbasis API agar trader dapat mengantisipasi volatilitas harga secara tepat.
             """)
 
-        with st.expander("🛠️ 6. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):
+        with st.expander("📢 6. Panduan Menu: Kirim Sinyal & Update Telegram"):
+            st.markdown("""
+            * **Fungsi Utama:** Memungkinkan Anda melakukan broadcast atau meneruskan update setup trading, analisis teknikal SMC, dan rekapitulasi market langsung ke grup atau channel Telegram **Lensjourneyy** secara instan.
+            """)
+
+        with st.expander("🛠️ 7. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):
             st.markdown("""
             * **Registrasi & Login Akun:** Setiap akun diamankan dengan aman untuk menjaga privasi data trading Anda di cloud.
             * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP via email (atau simulasi kode di layar) untuk proses reset password yang aman dan terlindungi.

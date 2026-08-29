@@ -373,7 +373,7 @@ def save_trade(username, row_data, file_name, file_bytes):
     except Exception as e:
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
-# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FINNHUB API) ====================
+# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FINNHUB API DENGAN RENTANG 2 BULAN) ====================
 @st.cache_data(ttl=600)
 def fetch_realtime_economic_calendar():
     try:
@@ -384,9 +384,10 @@ def fetch_realtime_economic_calendar():
     if not finnhub_key:
         return None, "API Key Finnhub belum dikonfigurasi di secrets.toml"
 
+    # Menggunakan rentang tanggal dinamis (hari ini hingga 60 hari / 2 bulan ke depan)
     today_date = datetime.utcnow().date()
     from_date = today_date.strftime('%Y-%m-%d')
-    to_date = (today_date + timedelta(days=3)).strftime('%Y-%m-%d')
+    to_date = (today_date + timedelta(days=60)).strftime('%Y-%m-%d')
 
     url = f"https://finnhub.io/api/v1/calendar/economic?from={from_date}&to={to_date}&token={finnhub_key}"
     try:
@@ -751,40 +752,22 @@ else:
 
     elif menu == "🧮 Kalkulator Lot & Risiko":
         st.title("🧮 Kalkulator Posisi & Ukuran Lot (Position Sizing)")
-        st.markdown("Alat bantu manajemen risiko profesional yang disesuaikan dengan parameter akun pendanaan (prop firm) dan manajemen modal Anda.")
+        st.markdown("Alat bantu manajemen risiko profesional untuk menghitung ukuran Lot ideal agar modal akun tetap aman.")
         
         c1, c2, c3 = st.columns(3)
         with c1:
-            acc_balance = st.number_input("Total Modal Akun ($)", value=50000.0, step=100.0)
-            risk_pct = st.number_input("Risiko Maksimal per Trade (%)", value=1.0, step=0.1)
+            acc_balance = st.number_input("Total Modal Akun ($)", value=1000.0, step=100.0)
+            risk_pct = st.number_input("Risiko Maksimal (%)", value=1.0, step=0.1)
         with c2:
             calc_pair = st.selectbox("Pair / Aset", ["XAUUSD (Gold)", "BTCUSD (Bitcoin)", "EURUSD", "GBPUSD", "USDJPY"])
-            calc_sl_pips = st.number_input("Jarak Stop Loss (dalam Pips / Points)", value=30.0, step=1.0)
+            calc_sl_pips = st.number_input("Jarak Stop Loss (dalam Pips / Points)", value=20.0, step=1.0)
         with c3:
-            max_daily_target_pct = st.number_input("Batas Maksimal Top Profit Konsistensi (%)", value=15.0, step=0.5, help="Prop firm rule: Top daily profit sebaiknya tidak melebihi persentase tertentu dari total profit keseluruhan.")
             st.markdown("<br>", unsafe_allow_html=True)
+            allowed_risk_usd = acc_balance * (risk_pct / 100.0)
+            ideal_lot = allowed_risk_usd / (calc_sl_pips * 10)
             
-        allowed_risk_usd = acc_balance * (risk_pct / 100.0)
-        
-        # Penyesuaian kalkulasi nilai pip berdasarkan pair populer (misal XAUUSD vs Forex Major)
-        if "XAUUSD" in calc_pair:
-            pip_value_per_lot = 10.0  # Contoh standar nilai per 1 lot per pip pada emas
-        elif "BTCUSD" in calc_pair:
-            pip_value_per_lot = 1.0
-        else:
-            pip_value_per_lot = 10.0
-
-        ideal_lot = allowed_risk_usd / (calc_sl_pips * pip_value_per_lot) if (calc_sl_pips * pip_value_per_lot) > 0 else 0.01
-
-        st.markdown("---")
-        res_col1, res_col2 = st.columns(2)
-        with res_col1:
-            st.metric(label="Batas Risiko Dana per Trade ($)", value=f"${allowed_risk_usd:,.2f}")
+            st.metric(label="Batas Risiko Dana ($)", value=f"${allowed_risk_usd:,.2f}")
             st.success(f"📌 **Rekomendasi Lot Ideal:** `{max(0.01, round(ideal_lot, 2))}` Lot")
-        with res_col2:
-            max_allowed_daily_profit = acc_balance * (max_daily_target_pct / 100.0)
-            st.metric(label="Ambang Batas Target Harian (Rule Check)", value=f"${max_allowed_daily_profit:,.2f}")
-            st.info(f"💡 Menjaga profit harian di bawah {max_daily_target_pct}% membantu mengamankan aturan konsistensi evaluasi prop firm.")
 
     elif menu == "➕ Input Jurnal & Screenshot":
         st.title("➕ Input Jurnal Trading & Unggah Screenshot")
@@ -891,8 +874,8 @@ else:
             st.info("Belum ada data riwayat trading di akun ini.")
 
     elif menu == "🌐 Sesi Pasar & Kalender Berita":
-        st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi (Real-Time API)")
-        st.markdown("Pantau jam operasional sesi pasar global serta jadwal rilis berita ekonomi berdampak tinggi (*High-Impact News*) secara *real-time* dari server finansial global.")
+        st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi (Real-Time API - Rentang 2 Bulan)")
+        st.markdown("Pantau jam operasional sesi pasar global serta jadwal rilis berita ekonomi berdampak tinggi (*High-Impact News*) untuk rentang **2 bulan ke depan** secara *real-time* dari server finansial global.")
         st.markdown("---")
 
         now_wib = datetime.utcnow() + timedelta(hours=7)
@@ -933,9 +916,9 @@ else:
             st.metric("Sydney (Australia)", sydney_status, "05:00 - 14:00 WIB")
 
         st.markdown("---")
-        st.subheader("📅 Jadwal Berita Makroekonomi Real-Time (Finnhub API)")
-        st.markdown(f"Tanggal Hari Ini: **{now_wib.strftime('%A, %d %B %Y')}**")
-        st.markdown("Berikut adalah jadwal rilis data ekonomi langsung ditarik dari API server luar secara otomatis:")
+        st.subheader("📅 Jadwal Berita Makroekonomi 2 Bulan ke Depan (Finnhub API)")
+        st.markdown(f"Rentang Waktu: **{now_wib.strftime('%d %B %Y')} s.d. {(now_wib + timedelta(days=60)).strftime('%d %B %Y')}**")
+        st.markdown("Berikut adalah jadwal rilis data ekonomi yang ditarik secara otomatis dari API server untuk proyeksi 2 bulan ke depan:")
 
         df_news, api_msg = fetch_realtime_economic_calendar()
 
@@ -945,7 +928,7 @@ else:
             if api_msg and "API Key" in api_msg:
                 st.warning(f"⚠️ {api_msg}. Pastikan Anda telah memasukkan `[finnhub] api_key` di `secrets.toml`.")
             else:
-                st.info("ℹ️ Tidak ada rilis data berita baru yang terjadwal untuk saat ini.")
+                st.info("ℹ️ Tidak ada rilis data berita baru yang terjadwal untuk rentang waktu ini.")
 
             if is_weekend:
                 data_fallback = {
@@ -964,7 +947,7 @@ else:
                 st.dataframe(pd.DataFrame(data_fallback), use_container_width=True, hide_index=True)
 
         st.markdown("---")
-        st.info("💡 **Tips Trading:** Hindari membuka posisi baru atau pastikan *Stop Loss* Anda terpasang dengan disiplin menjelang waktu rilis berita berharkat merah (🔴 Tinggi).")
+        st.info("💡 **Tips Trading:** Hindari membuka posisi besar atau pastikan *Stop Loss* terpasang disiplin menjelang rilis berita berdampak merah (🔴 Tinggi) dalam rentang kalender di atas.")
 
     elif menu == "📖 Panduan & Penjelasan Sistem":
         st.title("📖 Panduan & Penjelasan Sistem Trading Journal")
@@ -986,14 +969,13 @@ else:
             
         with st.expander("🧮 2. Panduan Menu: Kalkulator Lot & Risiko"):
             st.markdown("""
-            * **Fungsi Utama:** Alat bantu manajemen risiko (*Risk Management*) sebelum Anda membuka posisi di market agar terhindar dari *over-leverage* dan mematuhi batasan aturan akun evaluasi.
+            * **Fungsi Utama:** Alat bantu manajemen risiko (*Risk Management*) sebelum Anda membuka posisi di market agar terhindar dari *over-leverage*.
             * **Cara Penggunaan:**
                 1. Masukkan **Total Modal Akun ($)** yang Anda miliki saat ini.
-                2. Tentukan **Risiko Maksimal (%)** yang siap ditoleransi per transaksi (umumnya 0.5% - 1%).
+                2. Tentukan **Risiko Maksimal (%)** yang siap ditoleransi per transaksi (umumnya 1% - 2%).
                 3. Pilih **Pair / Aset** yang ditransaksikan.
                 4. Masukkan **Jarak Stop Loss** dalam satuan Pips atau Points.
-                5. Sesuaikan batas persentase konsistensi profit harian (misalnya aturan top daily profit maksimal 15%).
-            * **Hasil Kalkulasi:** Sistem otomatis menghitung batas risiko dalam dolar ($), rekomendasi **Ukuran Lot Ideal**, serta indikator ambang batas profit harian.
+            * **Hasil Kalkulasi:** Sistem otomatis menghitung batas risiko dalam dolar ($) serta merekomendasikan **Ukuran Lot Ideal** yang aman untuk dieksekusi.
             """)
             
         with st.expander("➕ 3. Panduan Menu: Input Jurnal & Screenshot"):
@@ -1003,10 +985,11 @@ else:
                 * **Tanggal & Pair:** Masukkan tanggal eksekusi dan pilih instrumen aset.
                 * **Tipe Order:** Pilih apakah posisi berupa **Buy** (Long) atau **Sell** (Short).
                 * **Lot, Entry, & SL:** Masukkan ukuran lot, harga masuk (*entry price*), dan level harga **Stop Loss (SL)**.
-                * **Penanganan Saat Terkena SL di Market (Real-Time):** Jika posisi Anda di platform trading (seperti MT5) terkena *Stop Loss* secara *real-time* di market, buka menu ini dan masukkan harga penutupan aktual pada kolom **Harga Keluar Aktual (Exit)**.
-                * **Pencatatan Kerugian:** Dengan memasukkan harga Exit tersebut, sistem akan otomatis menghitung dan menuliskan nominal kerugian bersih ke dalam database.
-                * **Strategi & Emosi:** Masukkan nama strategi teknikal dan evaluasi kondisi psikologis saat trade tersebut terjadi.
+                * **Penanganan Saat Terkena SL di Market (Real-Time):** Jika posisi Anda di platform trading (seperti MT5) terkena *Stop Loss* secara *real-time* di market, buka menu ini dan masukkan harga penutupan aktual pada kolom **Harga Keluar Aktual (Exit)** (biasanya nilainya persis atau sangat dekat dengan level *Stop Loss* yang Anda pasang). 
+                * **Pencatatan Kerugian:** Dengan memasukkan harga Exit tersebut, sistem akan otomatis menghitung dan menuliskan nominal kerugian bersih (berwarna merah) ke dalam database begitu Anda menekan tombol simpan, sehingga laporan kerugian Anda terekam dengan akurat di jurnal.
+                * **Strategi & Emosi:** Masukkan nama strategi teknikal dan evaluasi kondisi psikologis saat trade tersebut terjadi (misalnya: *Disiplin & Sesuai Plan* atau *Cut Loss Terlambat*).
                 * **Unggah Screenshot:** Lampirkan gambar bukti chart (PNG/JPG) untuk evaluasi teknikal jangka panjang.
+            * **Kalkulasi Otomatis:** Sistem secara instan menampilkan estimasi risiko Stop Loss serta hasil akhir transaksi (Profit/Loss) sebelum data disimpan permanen ke database.
             """)
             
         with st.expander("📋 4. Panduan Menu: Riwayat & Kalender"):
@@ -1014,21 +997,21 @@ else:
             * **Fungsi Utama:** Pusat arsip data transaksi masa lalu guna keperluan evaluasi berkala dan audit performa trading.
             * **Fitur & Navigasi:**
                 * **Tabel Riwayat Transaksi:** Menampilkan seluruh daftar riwayat trade lengkap dalam format tabel bersih.
-                * **Ekspor CSV:** Tombol unduh untuk mengunduh seluruh data jurnal ke format CSV.
-                * **Galeri Screenshot Chart:** Bagian ekspansi interaktif untuk meninjau ulang gambar setup chart yang pernah diunggah.
+                * **Ekspor CSV:** Tombol unduh untuk mengunduh seluruh data jurnal ke format CSV agar dapat dibuka atau dianalisis lebih lanjut menggunakan Microsoft Excel / Google Sheets.
+                * **Galeri Screenshot Chart:** Bagian ekspansi interaktif untuk meninjau ulang gambar setup chart yang pernah diunggah pada transaksi tertentu, lengkap dengan rincian tanggal, pair, dan hasil P/L-nya.
             """)
 
         with st.expander("🌐 5. Panduan Menu: Sesi Pasar & Kalender Berita"):
             st.markdown("""
-            * **Fungsi Utama:** Menyediakan informasi *real-time* mengenai status buka/tutup sesi bursa keuangan global utama (Tokyo, London, New York, Sydney) serta kalender rilis berita ekonomi berdampak tinggi (*High-Impact News*) berbasis API.
+            * **Fungsi Utama:** Menyediakan informasi *real-time* mengenai status buka/tutup sesi bursa keuangan global utama (Tokyo, London, New York, Sydney) serta kalender rilis berita ekonomi berdampak tinggi (*High-Impact News*) berbasis API dengan rentang waktu **2 bulan ke depan** agar trader dapat mengantisipasi volatilitas harga secara tepat.
             """)
 
         with st.expander("🛠️ 6. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):
             st.markdown("""
             * **Registrasi & Login Akun:** Setiap akun diamankan dengan aman untuk menjaga privasi data trading Anda di cloud.
-            * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP via email untuk proses reset password yang aman.
+            * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP via email (atau simulasi kode di layar) untuk proses reset password yang aman dan terlindungi.
             * **Validasi Password Lama:** Sistem secara otomatis mendeteksi dan menolak apabila Anda mencoba memasukkan password baru yang sama persis dengan password lama Anda.
-            * **Mode Responsif Otomatis:** Tata letak aplikasi menyesuaikan secara pintar di HP maupun PC.
+            * **Mode Responsif Otomatis:** Tata letak aplikasi menyesuaikan secara pintar secara otomatis (mengubah kolom menyamping menjadi bertumpuk vertikal di layar kecil) agar optimal diakses dari HP maupun PC tanpa perlu tombol pengaturan manual.
             """)
 
     elif menu == "💬 Masukan & Feedback":

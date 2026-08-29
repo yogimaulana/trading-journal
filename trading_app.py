@@ -456,6 +456,7 @@ def fetch_realtime_economic_calendar():
             return None, f"Gagal mengambil data dari API (HTTP Status: {response.status_code})"
     except Exception as e:
         return None, f"Error koneksi API: {str(e)}"
+
 # ==================== SESSION STATE LOGIN ====================
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
@@ -732,6 +733,7 @@ else:
             st.markdown("---")
             st.subheader("📅 Rekapitulasi & Perhitungan Otomatis PnL per Bulan")
             
+            # Perbaikan: Konversi format Bulan menjadi string kategori agar sumbu X chart terbaca benar
             df["Bulan"] = df["Tanggal"].dt.to_period("M").astype(str)
             monthly_summary = df.groupby("Bulan").agg(
                 Total_Trade=("P/L ($)", "count"),
@@ -745,24 +747,10 @@ else:
 
             st.dataframe(monthly_summary, use_container_width=True)
 
-            fig_monthly = px.bar(
-                monthly_summary,
-                x="Bulan",
-                y="Net P/L Bulan ($)",
-                text="Net P/L Bulan ($)",
-                title="<b>Perbandingan Net P/L Bulanan</b>",
-                labels={"Net P/L Bulan ($)": "Net P/L ($)", "Bulan": "Bulan Transaksi"}
-            )
-            fig_monthly.update_traces(marker_color="#00ADB5", texttemplate='$%{text:,.2f}', textposition='outside')
-            fig_monthly.update_layout(
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#CCCCCC", family="sans-serif"),
-                xaxis=dict(showgrid=False),
-                yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.08)"),
-                margin=dict(l=20, r=20, t=40, b=20)
-            )
-            st.plotly_chart(fig_monthly, use_container_width=True)
+            # Perbaikan Grafik P/L Bulanan menggunakan st.bar_chart dengan set_index agar sumbu X bersih dari rentang mikrodetik
+            st.markdown("### Perbandingan Net P/L Bulanan")
+            df_chart = monthly_summary.set_index("Bulan")[["Net P/L Bulan ($)"]]
+            st.bar_chart(df_chart)
             
             st.markdown("---")
             col_a, col_b = st.columns(2)

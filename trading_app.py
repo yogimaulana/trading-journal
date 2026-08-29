@@ -373,61 +373,6 @@ def save_trade(username, row_data, file_name, file_bytes):
     except Exception as e:
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
-# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FINNHUB API) ====================
-@st.cache_data(ttl=600)
-def fetch_realtime_economic_calendar():
-    try:
-        finnhub_key = st.secrets["finnhub"]["api_key"]
-    except Exception:
-        finnhub_key = ""
-
-    if not finnhub_key:
-        return None, "API Key Finnhub belum dikonfigurasi di secrets.toml"
-
-    today_date = datetime.utcnow().date()
-    from_date = today_date.strftime('%Y-%m-%d')
-    to_date = (today_date + timedelta(days=3)).strftime('%Y-%m-%d')
-
-    url = f"https://finnhub.io/api/v1/calendar/economic?from={from_date}&to={to_date}&token={finnhub_key}"
-    try:
-        response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            res_json = response.json()
-            economic_events = res_json.get("economicCalendar", [])
-            if not economic_events:
-                return pd.DataFrame(), "Tidak ada data event ditemukan."
-            
-            df_api = pd.DataFrame(economic_events)
-            formatted_data = []
-            for _, row in df_api.iterrows():
-                date_str = str(row.get("date", ""))[:10]
-                time_str = str(row.get("date", ""))[11:16]
-                if not time_str:
-                    time_str = "00:00"
-                
-                impact_val = row.get("impact", "Medium")
-                if str(impact_val).lower() in ["high", "3", "red"]:
-                    dampak = "🔴 Tinggi"
-                elif str(impact_val).lower() in ["low", "1", "green"]:
-                    dampak = "🟢 Rendah"
-                else:
-                    dampak = "🟡 Sedang"
-
-                formatted_data.append({
-                    "Tanggal": date_str,
-                    "Waktu (WIB)": time_str,
-                    "Mata Uang": row.get("country", "USD"),
-                    "Peristiwa / Berita Ekonomi": row.get("event", "Economic Data Release"),
-                    "Tingkat Dampak": dampak
-                })
-            
-            df_result = pd.DataFrame(formatted_data)
-            return df_result, "Success"
-        else:
-            return None, f"Gagal mengambil data dari API (HTTP Status: {response.status_code})"
-    except Exception as e:
-        return None, f"Error koneksi API: {str(e)}"
-
 # ==================== SESSION STATE LOGIN ====================
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
@@ -872,8 +817,8 @@ else:
             st.info("Belum ada data riwayat trading di akun ini.")
 
     elif menu == "🌐 Sesi Pasar & Kalender Berita":
-        st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi (Real-Time API)")
-        st.markdown("Pantau jam operasional sesi pasar global serta jadwal rilis berita ekonomi berdampak tinggi (*High-Impact News*) secara *real-time* dari server finansial global.")
+        st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi")
+        st.markdown("Pantau jam operasional sesi pasar global serta kalender ekonomi real-time langsung dari widget resmi TradingView.")
         st.markdown("---")
 
         now_wib = datetime.utcnow() + timedelta(hours=7)
@@ -914,38 +859,29 @@ else:
             st.metric("Sydney (Australia)", sydney_status, "05:00 - 14:00 WIB")
 
         st.markdown("---")
-        st.subheader("📅 Jadwal Berita Makroekonomi Real-Time (Finnhub API)")
-        st.markdown(f"Tanggal Hari Ini: **{now_wib.strftime('%A, %d %B %Y')}**")
-        st.markdown("Berikut adalah jadwal rilis data ekonomi langsung ditarik dari API server luar secara otomatis:")
+        st.subheader("📅 Live Economic Calendar (TradingView)")
+        st.markdown("Tabel kalender ekonomi di bawah ini disinkronkan secara langsung dari server TradingView:")
 
-        df_news, api_msg = fetch_realtime_economic_calendar()
-
-        if df_news is not None and not df_news.empty:
-            st.dataframe(df_news, use_container_width=True, hide_index=True)
-        else:
-            if api_msg and "API Key" in api_msg:
-                st.warning(f"⚠️ {api_msg}. Pastikan Anda telah memasukkan `[finnhub] api_key` di `secrets.toml`.")
-            else:
-                st.info("ℹ️ Tidak ada rilis data berita baru yang terjadwal untuk saat ini.")
-
-            if is_weekend:
-                data_fallback = {
-                    "Keterangan": ["Pasar Finansial Libur Akhir Pekan (Weekend)", "Tidak ada rilis berita ekonomi berdampak tinggi hari ini."],
-                }
-                st.dataframe(pd.DataFrame(data_fallback), use_container_width=True, hide_index=True)
-            else:
-                today_str = now_wib.strftime('%Y-%m-%d')
-                data_fallback = {
-                    "Tanggal": [today_str],
-                    "Waktu (WIB)": ["--:--"],
-                    "Mata Uang": ["ALL"],
-                    "Peristiwa / Berita Ekonomi": ["Tidak ada jadwal berita mayor untuk saat ini."],
-                    "Tingkat Dampak": ["🟢 Rendah"]
-                }
-                st.dataframe(pd.DataFrame(data_fallback), use_container_width=True, hide_index=True)
+        tradingview_widget_html = """
+        <div class="tradingview-widget-container" style="height:600px;width:100%">
+          <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-events.js" async>
+          {
+          "colorTheme": "dark",
+          "isTransparent": true,
+          "width": "100%",
+          "height": "600",
+          "locale": "id",
+          "importanceFilter": "-1,0,1",
+          "currencyFilter": "USD,EUR,GBP,JPY,AUD,CAD,XAU"
+        }
+          </script>
+        </div>
+        """
+        st.components.v1.html(tradingview_widget_html, height=620)
 
         st.markdown("---")
-        st.info("💡 **Tips Trading:** Hindari membuka posisi baru atau pastikan *Stop Loss* Anda terpasang dengan disiplin menjelang waktu rilis berita berharkat merah (🔴 Tinggi).")
+        st.info("💡 **Tips Trading:** Selalu perhatikan rilis berita dengan volatilitas tinggi sebelum mengeksekusi posisi atau pastikan Stop Loss Anda terpasang dengan disiplin.")
 
     elif menu == "📖 Panduan & Penjelasan Sistem":
         st.title("📖 Panduan & Penjelasan Sistem Trading Journal")
@@ -1001,7 +937,7 @@ else:
 
         with st.expander("🌐 5. Panduan Menu: Sesi Pasar & Kalender Berita"):
             st.markdown("""
-            * **Fungsi Utama:** Menyediakan informasi *real-time* mengenai status buka/tutup sesi bursa keuangan global utama (Tokyo, London, New York, Sydney) serta kalender rilis berita ekonomi berdampak tinggi (*High-Impact News*) berbasis API agar trader dapat mengantisipasi volatilitas harga secara tepat.
+            * **Fungsi Utama:** Menyediakan informasi interaktif mengenai status buka/tutup sesi bursa keuangan global utama (Tokyo, London, New York, Sydney) serta kalender rilis berita ekonomi berdampak tinggi (*High-Impact News*) langsung dari widget resmi TradingView.
             """)
 
         with st.expander("🛠️ 6. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):

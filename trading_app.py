@@ -372,7 +372,7 @@ def save_trade(username, row_data, file_name, file_bytes):
     except Exception as e:
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
-# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (RAPIDAPI FOREX FACTORY) ====================
+# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (RAPIDAPI) ====================
 @st.cache_data(ttl=300)
 def fetch_realtime_economic_calendar(from_date, to_date):
     try:
@@ -383,20 +383,21 @@ def fetch_realtime_economic_calendar(from_date, to_date):
     if not rapid_key:
         return None, "RapidAPI Key belum dikonfigurasi di secrets.toml"
 
+    # Menggunakan URL root standar RapidAPI untuk mencegah mismatch endpoint path
     url = "https://forex-factory-scraper1.p.rapidapi.com/get_real_time_calendar_details"
     
     dt_from = pd.to_datetime(from_date)
     
+    # Parameter query yang disesuaikan agar kompatibel dengan handler RapidAPI
     querystring = {
         "year": str(dt_from.year),
         "month": dt_from.strftime("%B"),
         "day": str(dt_from.day),
-        "timezone": "GMT+07:00 Central Time (US & Canada)",
+        "timezone": "GMT",
         "time_format": "24h"
     }
 
     headers = {
-        "content-type": "application/json",
         "X-RapidAPI-Key": rapid_key,
         "X-RapidAPI-Host": "forex-factory-scraper1.p.rapidapi.com"
     }
@@ -405,7 +406,6 @@ def fetch_realtime_economic_calendar(from_date, to_date):
         response = requests.get(url, headers=headers, params=querystring, timeout=10)
         if response.status_code == 200:
             res_json = response.json()
-            
             events = res_json if isinstance(res_json, list) else res_json.get("data", res_json.get("result", []))
             
             if not events:

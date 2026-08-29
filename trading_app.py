@@ -824,16 +824,43 @@ else:
         st.markdown("Pantau jam operasional sesi pasar global serta jadwal rilis berita ekonomi berdampak tinggi (High-Impact News) untuk menghindari volatilitas tak terduga.")
         st.markdown("---")
 
+        # Logika pengecekan waktu & hari (Senin - Jumat)
+        now_wib = datetime.utcnow() + timedelta(hours=7)
+        current_day = now_wib.weekday() # 0=Senin, ..., 5=Sabtu, 6=Minggu
+        is_weekend = current_day >= 5
+
+        current_hour = now_wib.hour
+        current_minute = now_wib.minute
+        current_time_val = current_hour * 60 + current_minute
+
+        def check_market_status(start_h, start_m, end_h, end_m):
+            if is_weekend:
+                return "Tutup"
+            start_val = start_h * 60 + start_m
+            end_val = end_h * 60 + end_m
+            if start_val < end_val:
+                return "Buka" if start_val <= current_time_val <= end_val else "Tutup"
+            else: # Melewati tengah malam
+                return "Buka" if current_time_val >= start_val or current_time_val <= end_val else "Tutup"
+
+        tokyo_status = check_market_status(8, 0, 17, 0)
+        london_status = check_market_status(15, 0, 0, 0)
+        newyork_status = check_market_status(20, 0, 5, 0)
+        sydney_status = check_market_status(5, 0, 14, 0)
+
         st.subheader("🕒 Status Sesi Pasar Global (WIB)")
+        if is_weekend:
+            st.info("📌 **Informasi:** Hari ini akhir pekan (Sabtu/Minggu). Seluruh pasar finansial global berada dalam status **Tutup**.")
+
         col_s1, col_s2, col_s3, col_s4 = st.columns(4)
         with col_s1:
-            st.metric("Tokyo (Jepang)", "Tutup", "08:00 - 17:00 WIB")
+            st.metric("Tokyo (Jepang)", tokyo_status, "08:00 - 17:00 WIB")
         with col_s2:
-            st.metric("London (Eropa)", "Buka", "15:00 - 00:00 WIB")
+            st.metric("London (Eropa)", london_status, "15:00 - 00:00 WIB")
         with col_s3:
-            st.metric("New York (US)", "Buka", "20:00 - 05:00 WIB")
+            st.metric("New York (US)", newyork_status, "20:00 - 05:00 WIB")
         with col_s4:
-            st.metric("Sydney (Australia)", "Tutup", "05:00 - 14:00 WIB")
+            st.metric("Sydney (Australia)", sydney_status, "05:00 - 14:00 WIB")
 
         st.markdown("---")
         st.subheader("📅 Jadwal Berita Berdampak Tinggi (High-Impact News)")
@@ -850,7 +877,6 @@ else:
 
         st.markdown("---")
         st.info("💡 **Tips Trading:** Hindari membuka posisi baru atau pastikan *Stop Loss* Anda terpasang dengan disiplin menjelang waktu rilis berita berharkat merah (🔴 Tinggi).")
-
     elif menu == "📖 Panduan & Penjelasan Sistem":
         st.title("📖 Panduan & Penjelasan Sistem Trading Journal")
         st.markdown("Pusat informasi dan dokumentasi komprehensif agar Anda dapat menguasai seluruh fungsi menu aplikasi.")

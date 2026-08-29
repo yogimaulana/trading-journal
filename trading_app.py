@@ -373,6 +373,7 @@ def save_trade(username, row_data, file_name, file_bytes):
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
 # ==================== FUNGSI FETCH KALENDER EKONOMI (RAPIDAPI) ====================
+# ==================== FUNGSI FETCH KALENDER EKONOMI (RAPIDAPI) ====================
 @st.cache_data(ttl=300)
 def fetch_realtime_economic_calendar(from_date, to_date):
     try:
@@ -383,20 +384,19 @@ def fetch_realtime_economic_calendar(from_date, to_date):
     if not rapid_key:
         return None, "RapidAPI Key belum dikonfigurasi di secrets.toml"
 
-    # Menyesuaikan dengan endpoint yang aktif di dashboard Anda
-    url = "https://forex-factory-scraper1.p.rapidapi.com/get_historical_calendar_details"
+    # Menggunakan endpoint umum berformat garis hubung (-) yang merupakan standar slug RapidAPI
+    url = "https://forex-factory-scraper1.p.rapidapi.com/get-calendar-details"
     
     dt_from = pd.to_datetime(from_date)
     
-    # Parameter lengkap sesuai contoh cURL pada dashboard RapidAPI
     querystring = {
         "year": int(dt_from.year),
         "month": int(dt_from.month),
         "day": int(dt_from.day),
         "currency": "ALL",
         "event_name": "ALL",
-        "timezone": "GMT-06:00 Central Time (US & Canada)",
-        "time_format": "12h"
+        "timezone": "GMT",
+        "time_format": "24h"
     }
 
     headers = {

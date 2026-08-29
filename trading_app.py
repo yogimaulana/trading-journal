@@ -373,7 +373,6 @@ def save_trade(username, row_data, file_name, file_bytes):
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
 # ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (RAPIDAPI) ====================
-# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (RAPIDAPI) ====================
 @st.cache_data(ttl=300)
 def fetch_realtime_economic_calendar(from_date, to_date):
     try:
@@ -388,7 +387,6 @@ def fetch_realtime_economic_calendar(from_date, to_date):
     
     dt_from = pd.to_datetime(from_date)
     
-    # Mengirimkan year, month, dan day dalam format angka (integer/string angka)
     querystring = {
         "year": int(dt_from.year),
         "month": int(dt_from.month),
@@ -401,44 +399,52 @@ def fetch_realtime_economic_calendar(from_date, to_date):
         "X-RapidAPI-Host": "forex-factory-scraper1.p.rapidapi.com"
     }
 
-    try:
-        response = requests.get(url, headers=headers, params=querystring, timeout=15)
-        if response.status_code == 200:
-            res_json = response.json()
-            events = res_json if isinstance(res_json, list) else res_json.get("data", res_json.get("result", []))
-            
-            if not events:
-                return pd.DataFrame(), f"Data kalender kosong untuk tanggal {from_date}."
-            
-            df_api = pd.DataFrame(events)
-            formatted_data = []
-            
-            for _, row in df_api.iterrows():
-                date_str = str(row.get("date", row.get("Date", "")))[:10]
-                time_str = str(row.get("time", row.get("Time", "00:00")))
+    # Melakukan percobaan hingga 2 kali jika terjadi timeout
+    for attempt in range(2):
+        try:
+            # Memperpanjang timeout menjadi 30 detik agar server memiliki waktu lebih longgar
+            response = requests.get(url, headers=headers, params=querystring, timeout=30)
+            if response.status_code == 200:
+                res_json = response.json()
+                events = res_json if isinstance(res_json, list) else res_json.get("data", res_json.get("result", []))
                 
-                impact_val = str(row.get("impact", row.get("Impact", "Medium")))
-                if "high" in impact_val.lower() or "red" in impact_val.lower() or "3" in impact_val:
-                    dampak = "🔴 Tinggi"
-                elif "low" in impact_val.lower() or "green" in impact_val.lower() or "1" in impact_val:
-                    dampak = "🟢 Rendah"
-                else:
-                    dampak = "🟡 Sedang"
+                if not events:
+                    return pd.DataFrame(), f"Data kalender kosong untuk tanggal {from_date}."
+                
+                df_api = pd.DataFrame(events)
+                formatted_data = []
+                
+                for _, row in df_api.iterrows():
+                    date_str = str(row.get("date", row.get("Date", "")))[:10]
+                    time_str = str(row.get("time", row.get("Time", "00:00")))
+                    
+                    impact_val = str(row.get("impact", row.get("Impact", "Medium")))
+                    if "high" in impact_val.lower() or "red" in impact_val.lower() or "3" in impact_val:
+                        dampak = "🔴 Tinggi"
+                    elif "low" in impact_val.lower() or "green" in impact_val.lower() or "1" in impact_val:
+                        dampak = "🟢 Rendah"
+                    else:
+                        dampak = "🟡 Sedang"
 
-                formatted_data.append({
-                    "Tanggal": date_str if date_str else str(from_date),
-                    "Waktu (WIB)": time_str,
-                    "Mata Uang": row.get("currency", row.get("Currency", "USD")),
-                    "Peristiwa / Berita Ekonomi": row.get("event", row.get("Event", "Economic Release")),
-                    "Tingkat Dampak": dampak
-                })
-            
-            df_result = pd.DataFrame(formatted_data)
-            return df_result, "Success"
-        else:
-            return None, f"Gagal mengambil data dari RapidAPI (HTTP Status: {response.status_code} - {response.text})"
-    except Exception as e:
-        return None, f"Error koneksi RapidAPI: {str(e)}"
+                    formatted_data.append({
+                        "Tanggal": date_str if date_str else str(from_date),
+                        "Waktu (WIB)": time_str,
+                        "Mata Uang": row.get("currency", row.get("Currency", "USD")),
+                        "Peristiwa / Berita Ekonomi": row.get("event", row.get("Event", "Economic Release")),
+                        "Tingkat Dampak": dampak
+                    })
+                
+                df_result = pd.DataFrame(formatted_data)
+                return df_result, "Success"
+            else:
+                return None, f"Gagal mengambil data dari RapidAPI (HTTP Status: {response.status_code})"
+        except requests.exceptions.Timeout:
+            if attempt == 1:
+                return None, "Error koneksi RapidAPI: Server memakan waktu terlalu lama merespons (Timeout)."
+        except Exception as e:
+            return None, f"Error koneksi RapidAPI: {str(e)}"
+    
+    return None, "Error koneksi RapidAPI: Timeout setelah beberapa percobaan."
 # ==================== SESSION STATE LOGIN ====================
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False

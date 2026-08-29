@@ -373,37 +373,35 @@ def save_trade(username, row_data, file_name, file_bytes):
     except Exception as e:
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
-# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FINNHUB API) ====================
+# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FMP API) ====================
 @st.cache_data(ttl=600)
 def fetch_realtime_economic_calendar():
     try:
-        finnhub_key = st.secrets["finnhub"]["api_key"]
+        fmp_key = st.secrets["fmp"]["api_key"]
     except Exception:
-        finnhub_key = ""
+        fmp_key = ""
 
-    if not finnhub_key:
-        return None, "API Key Finnhub belum dikonfigurasi di secrets.toml"
+    if not fmp_key:
+        return None, "API Key FMP belum dikonfigurasi di secrets.toml"
 
     today_date = datetime.utcnow().date()
     from_date = today_date.strftime('%Y-%m-%d')
     to_date = (today_date + timedelta(days=3)).strftime('%Y-%m-%d')
 
-    url = f"https://finnhub.io/api/v1/calendar/economic?from={from_date}&to={to_date}&token={finnhub_key}"
+    url = f"https://financialmodelingprep.com/stable/economic-calendar?from={from_date}&to={to_date}&apikey={fmp_key}"
     try:
         response = requests.get(url, timeout=10)
         if response.status_code == 200:
-            res_json = response.json()
-            economic_events = res_json.get("economicCalendar", [])
-            if not economic_events:
+            economic_events = response.json()
+            if not economic_events or not isinstance(economic_events, list):
                 return pd.DataFrame(), "Tidak ada data event ditemukan."
             
             df_api = pd.DataFrame(economic_events)
             formatted_data = []
             for _, row in df_api.iterrows():
-                date_str = str(row.get("date", ""))[:10]
-                time_str = str(row.get("date", ""))[11:16]
-                if not time_str:
-                    time_str = "00:00"
+                date_time_str = str(row.get("date", ""))
+                date_str = date_time_str[:10] if len(date_time_str) >= 10 else str(today_date)
+                time_str = date_time_str[11:16] if len(date_time_str) >= 16 else "00:00"
                 
                 impact_val = row.get("impact", "Medium")
                 if str(impact_val).lower() in ["high", "3", "red"]:
@@ -873,8 +871,8 @@ else:
             st.info("Belum ada data riwayat trading di akun ini.")
 
     elif menu == "🌐 Sesi Pasar & Kalender Berita":
-        st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi (Real-Time API)")
-        st.markdown("Pantau jam operasional sesi pasar global serta jadwal rilis berita ekonomi berdampak tinggi (*High-Impact News*) secara *real-time* dari server finansial global.")
+        st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi (FMP API)")
+        st.markdown("Pantau jam operasional sesi pasar global serta jadwal rilis berita ekonomi berdampak tinggi (*High-Impact News*) secara *real-time* dari server FMP.")
         st.markdown("---")
 
         now_wib = datetime.utcnow() + timedelta(hours=7)
@@ -915,9 +913,9 @@ else:
             st.metric("Sydney (Australia)", sydney_status, "05:00 - 14:00 WIB")
 
         st.markdown("---")
-        st.subheader("📅 Jadwal Berita Makroekonomi Real-Time (Finnhub API)")
+        st.subheader("📅 Jadwal Berita Makroekonomi Real-Time (FMP API)")
         st.markdown(f"Tanggal Hari Ini: **{now_wib.strftime('%A, %d %B %Y')}**")
-        st.markdown("Berikut adalah jadwal rilis data ekonomi langsung ditarik dari API server luar secara otomatis:")
+        st.markdown("Berikut adalah jadwal rilis data ekonomi langsung ditarik dari API Financial Modeling Prep secara otomatis:")
 
         df_news, api_msg = fetch_realtime_economic_calendar()
 
@@ -925,7 +923,7 @@ else:
             st.dataframe(df_news, use_container_width=True, hide_index=True)
         else:
             if api_msg and "API Key" in api_msg:
-                st.warning(f"⚠️ {api_msg}. Pastikan Anda telah memasukkan `[finnhub] api_key` di `secrets.toml`.")
+                st.warning(f"⚠️ {api_msg}. Pastikan Anda telah memasukkan `[fmp] api_key` di `secrets.toml`.")
             else:
                 st.info("ℹ️ Tidak ada rilis data berita baru yang terjadwal untuk saat ini.")
 
@@ -1002,7 +1000,7 @@ else:
 
         with st.expander("🌐 5. Panduan Menu: Sesi Pasar & Kalender Berita"):
             st.markdown("""
-            * **Fungsi Utama:** Menyediakan informasi *real-time* mengenai status buka/tutup sesi bursa keuangan global utama (Tokyo, London, New York, Sydney) serta kalender rilis berita ekonomi berdampak tinggi (*High-Impact News*) berbasis API agar trader dapat mengantisipasi volatilitas harga secara tepat.
+            * **Fungsi Utama:** Menyediakan informasi *real-time* mengenai status buka/tutup sesi bursa keuangan global utama (Tokyo, London, New York, Sydney) serta kalender rilis berita ekonomi berdampak tinggi (*High-Impact News*) berbasis FMP API agar trader dapat mengantisipasi volatilitas harga secara tepat.
             """)
 
         with st.expander("🛠️ 6. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):

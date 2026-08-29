@@ -39,7 +39,6 @@ st.markdown("""
         display: none !important;
     }
     
-    /* Animasi & Efek Visual Modern */
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(15px); }
         to { opacity: 1; transform: translateY(0); }
@@ -373,9 +372,9 @@ def save_trade(username, row_data, file_name, file_bytes):
     except Exception as e:
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
-# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FINNHUB API DENGAN RENTANG 2 BULAN) ====================
+# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FINNHUB API) ====================
 @st.cache_data(ttl=600)
-def fetch_realtime_economic_calendar():
+def fetch_realtime_economic_calendar(from_date, to_date):
     try:
         finnhub_key = st.secrets["finnhub"]["api_key"]
     except Exception:
@@ -384,11 +383,6 @@ def fetch_realtime_economic_calendar():
     if not finnhub_key:
         return None, "API Key Finnhub belum dikonfigurasi di secrets.toml"
 
-    # Menggunakan rentang tanggal dinamis (hari ini hingga 60 hari / 2 bulan ke depan)
-    today_date = datetime.utcnow().date()
-    from_date = today_date.strftime('%Y-%m-%d')
-    to_date = (today_date + timedelta(days=60)).strftime('%Y-%m-%d')
-
     url = f"https://finnhub.io/api/v1/calendar/economic?from={from_date}&to={to_date}&token={finnhub_key}"
     try:
         response = requests.get(url, timeout=10)
@@ -396,7 +390,7 @@ def fetch_realtime_economic_calendar():
             res_json = response.json()
             economic_events = res_json.get("economicCalendar", [])
             if not economic_events:
-                return pd.DataFrame(), "Tidak ada data event ditemukan."
+                return pd.DataFrame(), "Tidak ada data event ditemukan pada rentang tanggal tersebut."
             
             df_api = pd.DataFrame(economic_events)
             formatted_data = []
@@ -874,8 +868,8 @@ else:
             st.info("Belum ada data riwayat trading di akun ini.")
 
     elif menu == "🌐 Sesi Pasar & Kalender Berita":
-        st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi (Real-Time API - Rentang 2 Bulan)")
-        st.markdown("Pantau jam operasional sesi pasar global serta jadwal rilis berita ekonomi berdampak tinggi (*High-Impact News*) untuk rentang **2 bulan ke depan** secara *real-time* dari server finansial global.")
+        st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi (Real-Time API)")
+        st.markdown("Pantau jam operasional sesi pasar global serta jadwal rilis berita ekonomi berdampak tinggi (*High-Impact News*) secara *real-time* dari server finansial global.")
         st.markdown("---")
 
         now_wib = datetime.utcnow() + timedelta(hours=7)
@@ -916,38 +910,36 @@ else:
             st.metric("Sydney (Australia)", sydney_status, "05:00 - 14:00 WIB")
 
         st.markdown("---")
-        st.subheader("📅 Jadwal Berita Makroekonomi 2 Bulan ke Depan (Finnhub API)")
-        st.markdown(f"Rentang Waktu: **{now_wib.strftime('%d %B %Y')} s.d. {(now_wib + timedelta(days=60)).strftime('%d %B %Y')}**")
-        st.markdown("Berikut adalah jadwal rilis data ekonomi yang ditarik secara otomatis dari API server untuk proyeksi 2 bulan ke depan:")
+        st.subheader("📅 Jadwal Berita Makroekonomi Real-Time (Finnhub API)")
+        st.markdown(f"Tanggal Hari Ini: **{now_wib.strftime('%A, %d %B %Y')}**")
+        st.markdown("Pilih rentang tanggal di bawah ini untuk melihat jadwal rilis berita minggu ini, bulan depan, atau periode selanjutnya secara fleksibel:")
 
-        df_news, api_msg = fetch_realtime_economic_calendar()
+        # Filter interaktif rentang tanggal (bisa diset ke bulan depan dan seterusnya)
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            default_start = now_wib.date()
+            filter_from = st.date_input("Dari Tanggal", default_start)
+        with col_f2:
+            # Default rentang 30 hari ke depan untuk mencakup bulan depan
+            default_end = now_wib.date() + timedelta(days=30)
+            filter_to = st.date_input("Sampai Tanggal", default_end)
+
+        df_news, api_msg = fetch_realtime_economic_calendar(
+            filter_from.strftime('%Y-%m-%d'), 
+            filter_to.strftime('%Y-%m-%d')
+        )
 
         if df_news is not None and not df_news.empty:
+            st.success(f"Menampilkan {len(df_news)} event berita dari tanggal {filter_from} sampai {filter_to}")
             st.dataframe(df_news, use_container_width=True, hide_index=True)
         else:
             if api_msg and "API Key" in api_msg:
                 st.warning(f"⚠️ {api_msg}. Pastikan Anda telah memasukkan `[finnhub] api_key` di `secrets.toml`.")
             else:
-                st.info("ℹ️ Tidak ada rilis data berita baru yang terjadwal untuk rentang waktu ini.")
-
-            if is_weekend:
-                data_fallback = {
-                    "Keterangan": ["Pasar Finansial Libur Akhir Pekan (Weekend)", "Tidak ada rilis berita ekonomi berdampak tinggi hari ini."],
-                }
-                st.dataframe(pd.DataFrame(data_fallback), use_container_width=True, hide_index=True)
-            else:
-                today_str = now_wib.strftime('%Y-%m-%d')
-                data_fallback = {
-                    "Tanggal": [today_str],
-                    "Waktu (WIB)": ["--:--"],
-                    "Mata Uang": ["ALL"],
-                    "Peristiwa / Berita Ekonomi": ["Tidak ada jadwal berita mayor untuk saat ini."],
-                    "Tingkat Dampak": ["🟢 Rendah"]
-                }
-                st.dataframe(pd.DataFrame(data_fallback), use_container_width=True, hide_index=True)
+                st.info(f"ℹ️ Tidak ada jadwal rilis data ekonomi dari rentang tanggal {filter_from} hingga {filter_to}.")
 
         st.markdown("---")
-        st.info("💡 **Tips Trading:** Hindari membuka posisi besar atau pastikan *Stop Loss* terpasang disiplin menjelang rilis berita berdampak merah (🔴 Tinggi) dalam rentang kalender di atas.")
+        st.info("💡 **Tips Trading:** Gunakan filter tanggal di atas untuk memantau rilis berita berdampak tinggi (🔴 Tinggi) untuk beberapa minggu atau bulan ke depan sebagai acuan antisipasi tren pasar.")
 
     elif menu == "📖 Panduan & Penjelasan Sistem":
         st.title("📖 Panduan & Penjelasan Sistem Trading Journal")
@@ -1003,7 +995,7 @@ else:
 
         with st.expander("🌐 5. Panduan Menu: Sesi Pasar & Kalender Berita"):
             st.markdown("""
-            * **Fungsi Utama:** Menyediakan informasi *real-time* mengenai status buka/tutup sesi bursa keuangan global utama (Tokyo, London, New York, Sydney) serta kalender rilis berita ekonomi berdampak tinggi (*High-Impact News*) berbasis API dengan rentang waktu **2 bulan ke depan** agar trader dapat mengantisipasi volatilitas harga secara tepat.
+            * **Fungsi Utama:** Menyediakan informasi *real-time* mengenai status buka/tutup sesi bursa keuangan global utama (Tokyo, London, New York, Sydney) serta kalender rilis berita ekonomi berdampak tinggi (*High-Impact News*) berbasis API, dengan dukungan filter rentang tanggal agar trader dapat melihat jadwal rilis berita untuk minggu depan hingga bulan depan secara leluasa.
             """)
 
         with st.expander("🛠️ 6. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):

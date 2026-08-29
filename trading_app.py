@@ -141,7 +141,6 @@ st.markdown("""
         font-size: 16px !important;
     }
     
-    
     /* PENGATURAN HERO CONTAINER DENGAN EFEK GRID GARIS TRADING YANG JELAS */
     .hero-container {
         background-color: rgba(17, 24, 39, 0.85);
@@ -156,7 +155,6 @@ st.markdown("""
         margin-bottom: 2rem;
         backdrop-filter: blur(10px);
         animation: pulseGlow 4s infinite ease-in-out;
-    }
     }
     
     .hero-title {
@@ -578,6 +576,7 @@ else:
             "🧮 Kalkulator Lot & Risiko", 
             "➕ Input Jurnal & Screenshot", 
             "📋 Riwayat & Kalender", 
+            "🌐 Sesi Pasar & Kalender Berita",
             "📖 Panduan & Penjelasan Sistem",
             "💬 Masukan & Feedback"
         ],
@@ -820,6 +819,38 @@ else:
         else:
             st.info("Belum ada data riwayat trading di akun ini.")
 
+    elif menu == "🌐 Sesi Pasar & Kalender Berita":
+        st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi")
+        st.markdown("Pantau jam operasional sesi pasar global serta jadwal rilis berita ekonomi berdampak tinggi (High-Impact News) untuk menghindari volatilitas tak terduga.")
+        st.markdown("---")
+
+        st.subheader("🕒 Status Sesi Pasar Global (WIB)")
+        col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+        with col_s1:
+            st.metric("Tokyo (Jepang)", "Tutup", "08:00 - 17:00 WIB")
+        with col_s2:
+            st.metric("London (Eropa)", "Buka", "15:00 - 00:00 WIB")
+        with col_s3:
+            st.metric("New York (US)", "Buka", "20:00 - 05:00 WIB")
+        with col_s4:
+            st.metric("Sydney (Australia)", "Tutup", "05:00 - 14:00 WIB")
+
+        st.markdown("---")
+        st.subheader("📅 Jadwal Berita Berdampak Tinggi (High-Impact News)")
+        st.markdown("Berikut adalah daftar rilis data makroekonomi penting yang memengaruhi pergerakan pair utama dan XAU/USD:")
+
+        data_berita = {
+            "Waktu (WIB)": ["19:30", "21:00", "23:00"],
+            "Mata Uang": ["USD", "USD", "EUR"],
+            "Peristiwa / Berita Ekonomi": ["Non-Farm Payrolls (NFP)", "ISM Manufacturing PMI", "ECB President Speech"],
+            "Tingkat Dampak": ["🔴 Tinggi", "🔴 Tinggi", "🟡 Sedang"]
+        }
+        df_news = pd.DataFrame(data_berita)
+        st.dataframe(df_news, use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+        st.info("💡 **Tips Trading:** Hindari membuka posisi baru atau pastikan *Stop Loss* Anda terpasang dengan disiplin menjelang waktu rilis berita berharkat merah (🔴 Tinggi).")
+
     elif menu == "📖 Panduan & Penjelasan Sistem":
         st.title("📖 Panduan & Penjelasan Sistem Trading Journal")
         st.markdown("Pusat informasi dan dokumentasi komprehensif agar Anda dapat menguasai seluruh fungsi menu aplikasi.")
@@ -872,7 +903,12 @@ else:
                 * **Galeri Screenshot Chart:** Bagian ekspansi interaktif untuk meninjau ulang gambar setup chart yang pernah diunggah pada transaksi tertentu, lengkap dengan rincian tanggal, pair, dan hasil P/L-nya.
             """)
 
-        with st.expander("🛠️ 5. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):
+        with st.expander("🌐 5. Panduan Menu: Sesi Pasar & Kalender Berita"):
+            st.markdown("""
+            * **Fungsi Utama:** Memberikan informasi real-time mengenai status buka/tutup sesi bursa keuangan global utama (Tokyo, London, New York, Sydney) serta kalender rilis berita ekonomi berdampak tinggi (High-Impact News) agar trader dapat mengantisipasi volatilitas harga secara tepat.
+            """)
+
+        with st.expander("🛠️ 6. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):
             st.markdown("""
             * **Registrasi & Login Akun:** Setiap akun diamankan dengan aman untuk menjaga privasi data trading Anda di cloud.
             * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP via email (atau simulasi kode di layar) untuk proses reset password yang aman dan terlindungi.

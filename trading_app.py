@@ -864,9 +864,15 @@ else:
 
         st.markdown("---")
         st.subheader("📅 Jadwal Berita Berdampak Tinggi (High-Impact News)")
+        st.markdown(f"Tanggal Hari Ini: **{now_wib.strftime('%A, %d %B %Y')}**")
         st.markdown("Berikut adalah daftar rilis data makroekonomi penting yang memengaruhi pergerakan pair utama dan XAU/USD:")
 
+        # Menambahkan kolom Tanggal dinamis berdasarkan hari ini atau rentang terdekat
+        today_str = now_wib.strftime('%Y-%m-%d')
+        next_day_str = (now_wib + timedelta(days=1)).strftime('%Y-%m-%d')
+
         data_berita = {
+            "Tanggal": [today_str, today_str, next_day_str],
             "Waktu (WIB)": ["19:30", "21:00", "23:00"],
             "Mata Uang": ["USD", "USD", "EUR"],
             "Peristiwa / Berita Ekonomi": ["Non-Farm Payrolls (NFP)", "ISM Manufacturing PMI", "ECB President Speech"],

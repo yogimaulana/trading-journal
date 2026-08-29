@@ -373,7 +373,7 @@ def save_trade(username, row_data, file_name, file_bytes):
     except Exception as e:
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
-# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FMP API - RENTANG PER BULAN) ====================
+# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FMP API - RENTANG 2 BULAN) ====================
 @st.cache_data(ttl=600)
 def fetch_realtime_economic_calendar():
     try:
@@ -386,13 +386,25 @@ def fetch_realtime_economic_calendar():
 
     today_date = datetime.utcnow().date()
     
-    # Mengatur rentang dari tanggal 1 bulan ini sampai akhir bulan ini
+    # Tanggal awal: Hari pertama bulan berjalan
     from_date = today_date.replace(day=1).strftime('%Y-%m-%d')
     
-    # Mencari hari terakhir di bulan berjalan secara otomatis
-    next_month = today_date.replace(day=28) + timedelta(days=4)
-    last_day_of_month = next_month - timedelta(days=next_month.day)
-    to_date = last_day_of_month.strftime('%Y-%m-%d')
+    # Menghitung akhir bulan depan (2 bulan ke depan dari bulan ini)
+    # Langkah 1: Pindah ke bulan depan
+    if today_date.month == 12:
+        next_month_date = today_date.replace(year=today_date.year + 1, month=1, day=1)
+    else:
+        next_month_date = today_date.replace(month=today_date.month + 1, day=1)
+        
+    # Langkah 2: Pindah lagi satu bulan ke depan untuk mendapatkan akhir bulan depannya
+    if next_month_date.month == 12:
+        target_month_date = next_month_date.replace(year=next_month_date.year + 1, month=1, day=1)
+    else:
+        target_month_date = next_month_date.replace(month=next_month_date.month + 1, day=1)
+        
+    # Langkah 3: Mundur 1 hari dari awal bulan berikutnya untuk mendapatkan hari terakhir bulan depan
+    last_day_of_target_month = target_month_date - timedelta(days=1)
+    to_date = last_day_of_target_month.strftime('%Y-%m-%d')
 
     url = f"https://financialmodelingprep.com/stable/economic-calendar?from={from_date}&to={to_date}&apikey={fmp_key}"
     try:
@@ -400,7 +412,7 @@ def fetch_realtime_economic_calendar():
         if response.status_code == 200:
             economic_events = response.json()
             if not economic_events or not isinstance(economic_events, list):
-                return pd.DataFrame(), "Tidak ada data event ditemukan untuk bulan ini."
+                return pd.DataFrame(), "Tidak ada data event ditemukan untuk rentang 2 bulan ini."
             
             df_api = pd.DataFrame(economic_events)
             formatted_data = []
@@ -421,7 +433,7 @@ def fetch_realtime_economic_calendar():
                     "Tanggal": date_str,
                     "Waktu (WIB)": time_str,
                     "Mata Uang": row.get("country", "USD"),
-                    "Peristiwa / Berita Ekonomi": row.get("event", "Economic Data Release"),
+                    "Peristiwa / Berita Ekonomi": row.get("event", "EconomicData Release"),
                     "Tingkat Dampak": dampak
                 })
             

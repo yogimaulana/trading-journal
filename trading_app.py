@@ -267,7 +267,7 @@ SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["key"]
 
 @st.cache_resource
-def init_supabase() -> Client:
+def init_supabase():
     from supabase import create_client
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -373,7 +373,7 @@ def save_trade(username, row_data, file_name, file_bytes):
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
 # ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FMP API) ====================
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=60)
 def fetch_realtime_economic_calendar():
     try:
         fmp_key = st.secrets["fmp"]["api_key"]
@@ -383,21 +383,9 @@ def fetch_realtime_economic_calendar():
     if not fmp_key:
         return None, "API Key FMP belum dikonfigurasi di secrets.toml"
 
-    today_date = datetime.utcnow().date()
-    from_date = today_date.strftime('%Y-%m-%d')
-    
-    if today_date.month in [11, 12]:
-        target_year = today_date.year + 1
-        target_month = (today_date.month + 2) % 12
-        if target_month == 0: target_month = 12
-    else:
-        target_year = today_date.year
-        target_month = today_date.month + 2
-
-    temp_date = datetime(target_year, target_month, 1).date()
-    next_month_temp = temp_date.replace(day=28) + timedelta(days=4)
-    last_day_target = next_month_temp - timedelta(days=next_month_temp.day)
-    to_date = last_day_target.strftime('%Y-%m-%d')
+    now_utc = datetime.utcnow()
+    from_date = now_utc.strftime('%Y-%m-%d')
+    to_date = (now_utc + timedelta(days=7)).strftime('%Y-%m-%d')
 
     url = f"https://financialmodelingprep.com/api/v3/economic_calendar?from={from_date}&to={to_date}&apikey={fmp_key}"
     
@@ -407,22 +395,21 @@ def fetch_realtime_economic_calendar():
             economic_events = response.json()
             
             if not economic_events or not isinstance(economic_events, list):
-                fallback_to = (today_date + timedelta(days=7)).strftime('%Y-%m-%d')
-                url_fallback = f"https://financialmodelingprep.com/api/v3/economic_calendar?from={from_date}&to={fallback_to}&apikey={fmp_key}"
-                res_fallback = requests.get(url_fallback, timeout=10)
-                
-                if res_fallback.status_code == 200:
-                    economic_events = res_fallback.json()
-                
-                if not economic_events or not isinstance(economic_events, list):
-                    return pd.DataFrame(), f"Tidak ada data event terjadwal dari {from_date} hingga {to_date}."
+                return pd.DataFrame(), f"Tidak ada data event terjadwal dari {from_date} hingga {to_date}."
 
             df_api = pd.DataFrame(economic_events)
             formatted_data = []
             for _, row in df_api.iterrows():
                 date_time_str = str(row.get("date", ""))
-                date_str = date_time_str[:10] if len(date_time_str) >= 10 else str(today_date)
-                time_str = date_time_str[11:16] if len(date_time_str) >= 16 else "00:00"
+                
+                try:
+                    dt_utc = pd.to_datetime(date_time_str)
+                    dt_wib = dt_utc + timedelta(hours=7)
+                    date_str = dt_wib.strftime('%Y-%m-%d')
+                    time_str = dt_wib.strftime('%H:%M')
+                except Exception:
+                    date_str = date_time_str[:10] if len(date_time_str) >= 10 else str(now_utc.date())
+                    time_str = "00:00"
                 
                 impact_val = row.get("impact", "Medium")
                 if str(impact_val).lower() in ["high", "3", "red", "high impact"]:

@@ -6,6 +6,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import requests
+from supabase import create_client, Client
 
 # ==========================================
 # 1. KONFIGURASI HALAMAN & TAMPILAN RESPONSIF OTOMATIS
@@ -266,8 +267,7 @@ SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["key"]
 
 @st.cache_resource
-def init_supabase():
-    from supabase import create_client
+def init_supabase() -> Client:
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 supabase = init_supabase()
@@ -371,47 +371,59 @@ def save_trade(username, row_data, file_name, file_bytes):
     except Exception as e:
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
-# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FMP API) ====================
-@st.cache_data(ttl=10)
-def fetch_realtime_economic_calendar():
+# ==================== FUNGSI KALENDER EKONOMI & FALLBACK (TERBARU) ====================
+@st.cache_data(ttl=3600)
+def get_fallback_economic_calendar():
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    data = [
+        {
+            "Tanggal": today_str,
+            "Waktu (WIB)": "19:30",
+            "Mata Uang": "USD",
+            "Peristiwa / Berita Ekonomi": "High Impact Economic Data Release (Fallback)",
+            "Tingkat Dampak": "🔴 Tinggi",
+        }
+    ]
+    return pd.DataFrame(data)
+
+@st.cache_data(ttl=300)
+def fetch_economic_calendar():
     try:
         fmp_key = st.secrets["fmp"]["api_key"]
     except Exception:
         fmp_key = ""
 
     if not fmp_key:
-        return None, "API Key FMP belum dikonfigurasi di secrets.toml"
+        return pd.DataFrame(), "API Key FMP belum dikonfigurasi."
 
     now_utc = datetime.utcnow()
-    from_date = now_utc.strftime('%Y-%m-%d')
-    to_date = (now_utc + timedelta(days=7)).strftime('%Y-%m-%d')
-
+    from_date = now_utc.strftime("%Y-%m-%d")
+    to_date = (now_utc + timedelta(days=2)).strftime("%Y-%m-%d")
     url = f"https://financialmodelingprep.com/api/v3/economic_calendar?from={from_date}&to={to_date}&apikey={fmp_key}"
-    
+
     try:
-        response = requests.get(url, timeout=15)
+        response = requests.get(url, timeout=10)
         if response.status_code == 200:
             economic_events = response.json()
-            
-            print("RESPONS MENTAH FMP:", economic_events)
-            
             if not economic_events or not isinstance(economic_events, list):
-                return pd.DataFrame(), f"Respon kosong atau bukan list. Raw: {economic_events}"
+                return pd.DataFrame(), "Data kosong dari FMP."
 
-            df_api = pd.DataFrame(economic_events)
             formatted_data = []
-            for _, row in df_api.iterrows():
+            for row in economic_events:
                 date_time_str = str(row.get("date", ""))
-                
                 try:
                     dt_utc = pd.to_datetime(date_time_str)
                     dt_wib = dt_utc + timedelta(hours=7)
-                    date_str = dt_wib.strftime('%Y-%m-%d')
-                    time_str = dt_wib.strftime('%H:%M')
+                    date_str = dt_wib.strftime("%Y-%m-%d")
+                    time_str = dt_wib.strftime("%H:%M")
                 except Exception:
-                    date_str = date_time_str[:10] if len(date_time_str) >= 10 else str(now_utc.date())
+                    date_str = (
+                        date_time_str[:10]
+                        if len(date_time_str) >= 10
+                        else now_utc.strftime("%Y-%m-%d")
+                    )
                     time_str = "00:00"
-                
+
                 impact_val = row.get("impact", "Medium")
                 if str(impact_val).lower() in ["high", "3", "red", "high impact"]:
                     dampak = "🔴 Tinggi"
@@ -425,16 +437,13 @@ def fetch_realtime_economic_calendar():
                     "Waktu (WIB)": time_str,
                     "Mata Uang": row.get("country", row.get("currency", "USD")),
                     "Peristiwa / Berita Ekonomi": row.get("event", "Economic Data Release"),
-                    "Tingkat Dampak": dampak
+                    "Tingkat Dampak": dampak,
                 })
-            
-            df_result = pd.DataFrame(formatted_data)
-            df_result = df_result.sort_values(by=["Tanggal", "Waktu (WIB)"]).reset_index(drop=True)
-            return df_result, "Success"
+            return pd.DataFrame(formatted_data), "Success"
         else:
-            return None, f"Gagal mengambil data dari API (HTTP Status: {response.status_code})"
+            return pd.DataFrame(), f"HTTP Error: {response.status_code}"
     except Exception as e:
-        return None, f"Error koneksi API: {str(e)}"
+        return pd.DataFrame(), f"Error: {str(e)}"
 
 # ==================== SESSION STATE LOGIN ====================
 if 'logged_in' not in st.session_state:
@@ -829,14 +838,14 @@ else:
             st.info("Belum ada data riwayat trading di akun ini.")
 
     elif menu == "🌐 Sesi Pasar & Kalender Berita":
-        st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi (FMP API)")
-        st.markdown("Pantau jam operasional sesi pasar global serta jadwal rilis berita ekonomi berdampak tinggi (*High-Impact News*) secara *real-time* dari server FMP.")
+        st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi")
+        st.markdown("Memantau jam operasional sesi pasar global serta jadwal rilis berita ekonomi penting khusus **hari ini** agar tidak menumpuk.")
         st.markdown("---")
 
+        # Cek Sesi Pasar Global
         now_wib = datetime.utcnow() + timedelta(hours=7)
         current_day = now_wib.weekday()
         is_weekend = current_day >= 5
-
         current_hour = now_wib.hour
         current_minute = now_wib.minute
         current_time_val = current_hour * 60 + current_minute
@@ -871,35 +880,86 @@ else:
             st.metric("Sydney (Australia)", sydney_status, "05:00 - 14:00 WIB")
 
         st.markdown("---")
-        st.subheader("📅 Jadwal Berita Makroekonomi Real-Time (FMP API)")
-        st.markdown(f"Tanggal Hari Ini: **{now_wib.strftime('%A, %d %B %Y')}**")
-        st.markdown("Berikut adalah jadwal rilis data ekonomi langsung ditarik dari API Financial Modeling Prep secara otomatis:")
 
-        df_news, api_msg = fetch_realtime_economic_calendar()
+        # Ambil data dari API FMP
+        df_api, status_msg = fetch_economic_calendar()
 
-        if df_news is not None and not df_news.empty:
-            st.dataframe(df_news, use_container_width=True, hide_index=True)
+        # Jika API kosong/gagal, gunakan fallback data
+        if df_api is None or df_api.empty:
+            df_final = get_fallback_economic_calendar()
+            st.sidebar.info("ℹ️ Menggunakan data cadangan (Free tier API terbatas).")
         else:
-            if api_msg and "API Key" in api_msg:
-                st.warning(f"⚠️ {api_msg}. Pastikan Anda telah memasukkan `[fmp] api_key` di `secrets.toml`.")
-            else:
-                st.info("ℹ️ Tidak ada rilis data berita baru yang terjadwal untuk saat ini.")
+            df_final = df_api
 
-            if is_weekend:
-                data_fallback = {
-                    "Keterangan": ["Pasar Finansial Libur Akhir Pekan (Weekend)", "Tidak ada rilis berita ekonomi berdampak tinggi hari ini."],
-                }
-                st.dataframe(pd.DataFrame(data_fallback), use_container_width=True, hide_index=True)
+        # Filter otomatis: HANYA tampilkan tanggal hari ini (1 hari)
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        if "Tanggal" in df_final.columns:
+            df_today = df_final[df_final["Tanggal"] == today_str].reset_index(drop=True)
+        else:
+            df_today = pd.DataFrame()
+
+        # Countdown Berita High Impact Terdekat
+        if not df_today.empty:
+            now_time = datetime.now()
+            high_impact_today = df_today[df_today["Tingkat Dampak"] == "🔴 Tinggi"]
+            
+            upcoming_events = []
+            for _, row in high_impact_today.iterrows():
+                event_time_str = row["Waktu (WIB)"]
+                try:
+                    event_dt = datetime.strptime(f"{today_str} {event_time_str}", "%Y-%m-%d %H:%M")
+                    if event_dt > now_time:
+                        time_diff = event_dt - now_time
+                        upcoming_events.append((time_diff, row))
+                except Exception:
+                    pass
+
+            if upcoming_events:
+                upcoming_events.sort(key=lambda x: x[0])
+                next_diff, next_row = upcoming_events[0]
+                hours, remainder = divmod(int(next_diff.total_seconds()), 3600)
+                minutes, _ = divmod(remainder, 60)
+                
+                st.warning(
+                    f"⚡ **Berita High Impact Terdekat:** `{next_row['Peristiwa / Berita Ekonomi']}` "
+                    f"({next_row['Mata Uang']}) pada pukul **{next_row['Waktu (WIB)']} WIB** "
+                    f"— ⏳ *{hours} jam {minutes} menit lagi*"
+                )
+
+        st.subheader(f"📅 Jadwal Berita Hari Ini: {today_str}")
+
+        if not df_today.empty:
+            # Filter Sidebar / Kontrol UI
+            st.sidebar.header("⚙️ Filter Kalender Berita")
+            only_high_impact = st.sidebar.checkbox("Hanya Dampak Tinggi (🔴)", value=False)
+            
+            all_currencies = sorted(df_today["Mata Uang"].dropna().unique().tolist())
+            selected_currencies = st.sidebar.multiselect(
+                "Pilih Mata Uang / Negara", 
+                options=all_currencies, 
+                default=all_currencies
+            )
+            
+            search_keyword = st.sidebar.text_input("🔍 Cari Peristiwa (Cth: CPI, NFP, Rate)")
+
+            # Terapkan Filter
+            if only_high_impact:
+                df_today = df_today[df_today["Tingkat Dampak"] == "🔴 Tinggi"]
+            
+            if selected_currencies:
+                df_today = df_today[df_today["Mata Uang"].isin(selected_currencies)]
+                
+            if search_keyword:
+                df_today = df_today[df_today["Peristiwa / Berita Ekonomi"].str.contains(search_keyword, case=False, na=False)]
+
+            df_today = df_today.reset_index(drop=True)
+
+            if not df_today.empty:
+                st.dataframe(df_today, use_container_width=True, hide_index=True)
             else:
-                today_str = now_wib.strftime('%Y-%m-%d')
-                data_fallback = {
-                    "Tanggal": [today_str],
-                    "Waktu (WIB)": ["--:--"],
-                    "Mata Uang": ["ALL"],
-                    "Peristiwa / Berita Ekonomi": ["Tidak ada jadwal berita mayor untuk saat ini."],
-                    "Tingkat Dampak": ["🟢 Rendah"]
-                }
-                st.dataframe(pd.DataFrame(data_fallback), use_container_width=True, hide_index=True)
+                st.info("Tidak ada berita yang sesuai dengan filter yang dipilih untuk hari ini.")
+        else:
+            st.warning("Tidak ada jadwal berita ekonomi tercatat untuk hari ini. Pasar berjalan normal.")
 
         st.markdown("---")
         st.info("💡 **Tips Trading:** Hindari membuka posisi baru atau pastikan *Stop Loss* Anda terpasang dengan disiplin menjelang waktu rilis berita berharkat merah (🔴 Tinggi).")
@@ -918,54 +978,31 @@ else:
                 * **Total Posisi:** Jumlah total transaksi yang telah dicatat dan dieksekusi.
                 * **Win Rate (%):** Tingkat akurasi persentase kemenangan berdasarkan jumlah posisi profit berbanding total trade.
                 * **Profit Factor:** Perbandingan antara *Gross Profit* (total profit kotor) dibagi *Gross Loss* (total loss kotor). Nilai > 1.5 mengindikasikan performa trading yang sehat.
-            * **Performa Pair & Strategi:** Tabel ringkas yang memetakan aset atau strategi mana yang memberikan kontribusi profit terbesar.
             """)
             
         with st.expander("🧮 2. Panduan Menu: Kalkulator Lot & Risiko"):
             st.markdown("""
             * **Fungsi Utama:** Alat bantu manajemen risiko (*Risk Management*) sebelum Anda membuka posisi di market agar terhindar dari *over-leverage*.
-            * **Cara Penggunaan:**
-                1. Masukkan **Total Modal Akun ($)** yang Anda miliki saat ini.
-                2. Tentukan **Risiko Maksimal (%)** yang siap ditoleransi per transaksi (umumnya 1% - 2%).
-                3. Pilih **Pair / Aset** yang ditransaksikan.
-                4. Masukkan **Jarak Stop Loss** dalam satuan Pips atau Points.
-            * **Hasil Kalkulasi:** Sistem otomatis menghitung batas risiko dalam dolar ($) serta merekomendasikan **Ukuran Lot Ideal** yang aman untuk dieksekusi.
             """)
             
         with st.expander("➕ 3. Panduan Menu: Input Jurnal & Screenshot"):
             st.markdown("""
-            * **Fungsi Utama:** Formulir pencatatan harian untuk mendokumentasikan parameter transaksi secara terstruktur—termasuk penetapan **Stop Loss (SL)** sebagai pengaman risiko utama—beserta evaluasi psikologisnya.
-            * **Langkah Input Data & Skenario Terkena SL:**
-                * **Tanggal & Pair:** Masukkan tanggal eksekusi dan pilih instrumen aset.
-                * **Tipe Order:** Pilih apakah posisi berupa **Buy** (Long) atau **Sell** (Short).
-                * **Lot, Entry, & SL:** Masukkan ukuran lot, harga masuk (*entry price*), dan level harga **Stop Loss (SL)**.
-                * **Penanganan Saat Terkena SL di Market (Real-Time):** Jika posisi Anda di platform trading (seperti MT5) terkena *Stop Loss* secara *real-time* di market, buka menu ini dan masukkan harga penutupan aktual pada kolom **Harga Keluar Aktual (Exit)** (biasanya nilainya persis atau sangat dekat dengan level *Stop Loss* yang Anda pasang). 
-                * **Pencatatan Kerugian:** Dengan memasukkan harga Exit tersebut, sistem akan otomatis menghitung dan menuliskan nominal kerugian bersih (berwarna merah) ke dalam database begitu Anda menekan tombol simpan, sehingga laporan kerugian Anda terekam dengan akurat di jurnal.
-                * **Strategi & Emosi:** Masukkan nama strategi teknikal dan evaluasi kondisi psikologis saat trade tersebut terjadi (misalnya: *Disiplin & Sesuai Plan* atau *Cut Loss Terlambat*).
-                * **Unggah Screenshot:** Lampirkan gambar bukti chart (PNG/JPG) untuk evaluasi teknikal jangka panjang.
-            * **Kalkulasi Otomatis:** Sistem secara instan menampilkan estimasi risiko Stop Loss serta hasil akhir transaksi (Profit/Loss) sebelum data disimpan permanen ke database.
+            * **Fungsi Utama:** Formulir pencatatan harian untuk mendokumentasikan parameter transaksi secara terstruktur serta evaluasi psikologisnya.
             """)
             
         with st.expander("📋 4. Panduan Menu: Riwayat & Kalender"):
             st.markdown("""
             * **Fungsi Utama:** Pusat arsip data transaksi masa lalu guna keperluan evaluasi berkala dan audit performa trading.
-            * **Fitur & Navigasi:**
-                * **Tabel Riwayat Transaksi:** Menampilkan seluruh daftar riwayat trade lengkap dalam format tabel bersih.
-                * **Ekspor CSV:** Tombol unduh untuk mengunduh seluruh data jurnal ke format CSV agar dapat dibuka atau dianalisis lebih lanjut menggunakan Microsoft Excel / Google Sheets.
-                * **Galeri Screenshot Chart:** Bagian ekspansi interaktif untuk meninjau ulang gambar setup chart yang pernah diunggah pada transaksi tertentu, lengkap dengan rincian tanggal, pair, dan hasil P/L-nya.
             """)
 
         with st.expander("🌐 5. Panduan Menu: Sesi Pasar & Kalender Berita"):
             st.markdown("""
-            * **Fungsi Utama:** Menyediakan informasi *real-time* mengenai status buka/tutup sesi bursa keuangan global utama (Tokyo, London, New York, Sydney) serta kalender rilis berita ekonomi berdampak tinggi (*High-Impact News*) berbasis FMP API agar trader dapat mengantisipasi volatilitas harga secara tepat.
+            * **Fungsi Utama:** Memantau jam buka/tutup sesi pasar global serta kalender berita ekonomi real-time lengkap dengan fitur hitung mundur (*countdown*) waktu rilis berita *high-impact*.
             """)
 
-        with st.expander("🛠️ 6. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):
+        with st.expander("🛠️ 6. Sistem Keamanan & Pengaturan"):
             st.markdown("""
-            * **Registrasi & Login Akun:** Setiap akun diamankan dengan aman untuk menjaga privasi data trading Anda di cloud.
-            * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP via email (atau simulasi kode di layar) untuk proses reset password yang aman dan terlindungi.
-            * **Validasi Password Lama:** Sistem secara otomatis mendeteksi dan menolak apabila Anda mencoba memasukkan password baru yang sama persis dengan password lama Anda.
-            * **Mode Responsif Otomatis:** Tata letak aplikasi menyesuaikan secara pintar secara otomatis (mengubah kolom menyamping menjadi bertumpuk vertikal di layar kecil) agar optimal diakses dari HP maupun PC tanpa perlu tombol pengaturan manual.
+            * **Autentikasi & Validasi:** Keamanan data privat dengan sistem login berbasis cloud Supabase serta pemulihan sandi via kode OTP.
             """)
 
     elif menu == "💬 Masukan & Feedback":
@@ -1008,8 +1045,6 @@ else:
 
         with fb_tab2:
             st.subheader("Daftar Masukan Pengguna")
-            st.write("Berikut adalah rekap feedback yang telah masuk ke database cloud:")
-            
             if st.button("🔄 Muat Ulang Data Feedback"):
                 st.rerun()
                 

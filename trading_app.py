@@ -1,22 +1,24 @@
+import streamlit as st
+import pandas as pd
 from datetime import datetime, timedelta
 import random
 import smtplib
-from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import pandas as pd
+from email.mime.multipart import MIMEMultipart
 import requests
-from supabase import Client, create_client
+from supabase import create_client, Client
 
 # ==========================================
 # 1. KONFIGURASI HALAMAN & TAMPILAN RESPONSIF OTOMATIS
 # ==========================================
 st.set_page_config(
-    page_title="Lensjourneyy Trading Journal", page_icon="📈", layout="wide"
+    page_title="Lensjourneyy Trading Journal",
+    page_icon="📈",
+    layout="wide"
 )
 
 # ==================== KUSTOM CSS & RESPONSIF OTOMATIS (HP & PC) ====================
-st.markdown(
-    """
+st.markdown("""
     <style>
     .stApp {
         background-color: #0b0f19;
@@ -36,6 +38,7 @@ st.markdown(
         display: none !important;
     }
     
+    /* Animasi & Efek Visual Modern */
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(15px); }
         to { opacity: 1; transform: translateY(0); }
@@ -250,9 +253,7 @@ st.markdown(
         <div class="glowing-orb orb-1"></div>
         <div class="glowing-orb orb-2"></div>
     </div>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 # ==================== KONFIGURASI EMAIL (SMTP) ====================
 try:
@@ -266,245 +267,201 @@ except Exception:
 SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["key"]
 
-
 @st.cache_resource
 def init_supabase() -> Client:
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
-
 supabase = init_supabase()
-
 
 # ==================== FUNGSI DATABASE SUPABASE ====================
 def send_email_otp(receiver_email, code):
-  try:
-    msg = MIMEMultipart()
-    msg["From"] = f"Lensjourneyy Support <{EMAIL_SENDER}>"
-    msg["To"] = receiver_email
-    msg["Subject"] = "Kode Verifikasi Keamanan Jurnal Trading"
-    body = f"Halo,\n\nBerikut adalah kode verifikasi Anda: {code}\nBerlaku selama 10 menit.\n\nSalam,\nLensjourneyy Support"
-    msg.attach(MIMEText(body, "plain"))
-    server = smtplib.SMTP("smtp.gmail.com", 587)
-    server.starttls()
-    server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-    server.sendmail(EMAIL_SENDER, receiver_email, msg.as_string())
-    server.quit()
-    return True, "Kode verifikasi berhasil dikirim!"
-  except Exception as e:
-    return False, f"Gagal mengirim email: {str(e)}"
-
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = f"Lensjourneyy Support <{EMAIL_SENDER}>"
+        msg['To'] = receiver_email
+        msg['Subject'] = "Kode Verifikasi Keamanan Jurnal Trading"
+        body = f"Halo,\n\nBerikut adalah kode verifikasi Anda: {code}\nBerlaku selama 10 menit.\n\nSalam,\nLensjourneyy Support"
+        msg.attach(MIMEText(body, 'plain'))
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.sendmail(EMAIL_SENDER, receiver_email, msg.as_string())
+        server.quit()
+        return True, "Kode verifikasi berhasil dikirim!"
+    except Exception as e:
+        return False, f"Gagal mengirim email: {str(e)}"
 
 def check_user(username, password):
-  try:
-    response = (
-        supabase.table("users")
-        .select("*")
-        .eq("username", username)
-        .eq("password", password)
-        .execute()
-    )
-    return len(response.data) > 0
-  except Exception:
-    return False
-
+    try:
+        response = supabase.table("users").select("*").eq("username", username).eq("password", password).execute()
+        return len(response.data) > 0
+    except Exception:
+        return False
 
 def is_same_as_old_password(username, new_password):
-  try:
-    response = (
-        supabase.table("users").select("password").eq("username", username).execute()
-    )
-    if response.data:
-      return response.data[0]["password"] == new_password
-    return False
-  except Exception:
-    return False
-
+    try:
+        response = supabase.table("users").select("password").eq("username", username).execute()
+        if response.data:
+            return response.data[0]["password"] == new_password
+        return False
+    except Exception:
+        return False
 
 def add_user(username, email, password):
-  try:
-    check_u = (
-        supabase.table("users").select("*").eq("username", username).execute()
-    )
-    if len(check_u.data) > 0:
-      return False, "Username sudah terdaftar. Silakan gunakan username lain."
-
-    supabase.table("users").insert(
-        {"username": username, "password": password}
-    ).execute()
-    return True, "Akun berhasil didaftarkan!"
-  except Exception as e:
-    return False, f"Gagal mendaftarkan akun: {str(e)}"
-
+    try:
+        check_u = supabase.table("users").select("*").eq("username", username).execute()
+        if len(check_u.data) > 0:
+            return False, "Username sudah terdaftar. Silakan gunakan username lain."
+        
+        supabase.table("users").insert({
+            "username": username,
+            "password": password
+        }).execute()
+        return True, "Akun berhasil didaftarkan!"
+    except Exception as e:
+        return False, f"Gagal mendaftarkan akun: {str(e)}"
 
 def load_trades(username):
-  try:
-    response = (
-        supabase.table("trades").select("*").eq("username", username).execute()
-    )
-    data = response.data
-    if not data:
-      return pd.DataFrame(
-          columns=[
-              "id",
-              "Tanggal",
-              "Pair",
-              "Tipe",
-              "Lot",
-              "Entry",
-              "SL",
-              "Exit",
-              "P/L ($)",
-              "Strategi",
-              "Emosi / Catatan",
-              "screenshot_name",
-          ]
-      )
-
-    df = pd.DataFrame(data)
-    rename_map = {
-        "id": "id",
-        "tanggal": "Tanggal",
-        "pair": "Pair",
-        "tipe": "Tipe",
-        "lot": "Lot",
-        "entry": "Entry",
-        "sl": "SL",
-        "exit": "Exit",
-        "pl": "P/L ($)",
-        "strategi": "Strategi",
-        "emosi": "Emosi / Catatan",
-        "screenshot_name": "screenshot_name",
-    }
-    df = df.rename(columns=rename_map)
-    return df
-  except Exception:
-    return pd.DataFrame()
-
+    try:
+        response = supabase.table("trades").select("*").eq("username", username).execute()
+        data = response.data
+        if not data:
+            return pd.DataFrame(columns=["id", "Tanggal", "Pair", "Tipe", "Lot", "Entry", "SL", "Exit", "P/L ($)", "Strategi", "Emosi / Catatan", "screenshot_name"])
+        
+        df = pd.DataFrame(data)
+        rename_map = {
+            "id": "id",
+            "tanggal": "Tanggal",
+            "pair": "Pair",
+            "tipe": "Tipe",
+            "lot": "Lot",
+            "entry": "Entry",
+            "sl": "SL",
+            "exit": "Exit",
+            "pl": "P/L ($)",
+            "strategi": "Strategi",
+            "emosi": "Emosi / Catatan",
+            "screenshot_name": "screenshot_name"
+        }
+        df = df.rename(columns=rename_map)
+        return df
+    except Exception:
+        return pd.DataFrame()
 
 def save_trade(username, row_data, file_name, file_bytes):
-  try:
-    import base64
+    try:
+        import base64
+        b64_encoded = base64.b64encode(file_bytes).decode('utf-8') if file_bytes else None
 
-    b64_encoded = (
-        base64.b64encode(file_bytes).decode("utf-8") if file_bytes else None
-    )
+        payload = {
+            "username": username,
+            "tanggal": str(row_data["Tanggal"]),
+            "pair": row_data["Pair"],
+            "tipe": row_data["Tipe"],
+            "lot": float(row_data["Lot"]),
+            "entry": float(row_data["Entry"]),
+            "sl": float(row_data["SL"]),
+            "exit": float(row_data["Exit"]),
+            "pl": float(row_data["P/L ($)"]),
+            "strategi": row_data["Strategi"],
+            "emosi": row_data["Emosi / Catatan"],
+            "screenshot_name": file_name,
+            "screenshot_data": b64_encoded
+        }
+        supabase.table("trades").insert(payload).execute()
+    except Exception as e:
+        st.error(f"Gagal menyimpan ke cloud: {e}")
 
-    payload = {
-        "username": username,
-        "tanggal": str(row_data["Tanggal"]),
-        "pair": row_data["Pair"],
-        "tipe": row_data["Tipe"],
-        "lot": float(row_data["Lot"]),
-        "entry": float(row_data["Entry"]),
-        "sl": float(row_data["SL"]),
-        "exit": float(row_data["Exit"]),
-        "pl": float(row_data["P/L ($)"]),
-        "strategi": row_data["Strategi"],
-        "emosi": row_data["Emosi / Catatan"],
-        "screenshot_name": file_name,
-        "screenshot_data": b64_encoded,
-    }
-    supabase.table("trades").insert(payload).execute()
-  except Exception as e:
-    st.error(f"Gagal menyimpan ke cloud: {e}")
+# ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FMP API) ====================
+@st.cache_data(ttl=600)
+def fetch_realtime_economic_calendar():
+    try:
+        fmp_key = st.secrets["fmp"]["api_key"]
+    except Exception:
+        fmp_key = ""
 
+    if not fmp_key:
+        return None, "API Key FMP belum dikonfigurasi di secrets.toml"
 
-# ==================== FUNGSI KALENDER EKONOMI & FALLBACK (TERBARU & DIPERLUAS) ====================
-@st.cache_data(ttl=3600)
-def get_fallback_economic_calendar():
-  today_str = datetime.now().strftime("%Y-%m-%d")
-  data = [
-      {
-          "Tanggal": today_str,
-          "Waktu (WIB)": "19:30",
-          "Mata Uang": "USD",
-          "Peristiwa / Berita Ekonomi": (
-              "High Impact Economic Data Release (Fallback)"
-          ),
-          "Tingkat Dampak": "🔴 Tinggi",
-      }
-  ]
-  return pd.DataFrame(data)
-
-
-@st.cache_data(ttl=300)
-def fetch_economic_calendar():
-  try:
-    fmp_key = st.secrets["fmp"]["api_key"]
-  except Exception:
-    fmp_key = ""
-
-  if not fmp_key:
-    return pd.DataFrame(), "API Key FMP belum dikonfigurasi."
-
-  # Diperluas ke belakang 1 hari & ke depan 3 hari agar zona waktu WIB aman dari data terpotong
-  now_utc = datetime.utcnow()
-  from_date = (now_utc - timedelta(days=1)).strftime("%Y-%m-%d")
-  to_date = (now_utc + timedelta(days=3)).strftime("%Y-%m-%d")
-  url = f"https://financialmodelingprep.com/api/v3/economic_calendar?from={from_date}&to={to_date}&apikey={fmp_key}"
-
-  try:
-    response = requests.get(url, timeout=10)
-    if response.status_code == 200:
-      economic_events = response.json()
-      if not economic_events or not isinstance(economic_events, list):
-        return pd.DataFrame(), "Data kosong dari FMP."
-
-      formatted_data = []
-      for row in economic_events:
-        date_time_str = str(row.get("date", ""))
-        try:
-          dt_utc = pd.to_datetime(date_time_str)
-          dt_wib = dt_utc + timedelta(hours=7)
-          date_str = dt_wib.strftime("%Y-%m-%d")
-          time_str = dt_wib.strftime("%H:%M")
-        except Exception:
-          date_str = (
-              date_time_str[:10]
-              if len(date_time_str) >= 10
-              else now_utc.strftime("%Y-%m-%d")
-          )
-          time_str = "00:00"
-
-        impact_val = row.get("impact", "Medium")
-        if str(impact_val).lower() in ["high", "3", "red", "high impact"]:
-          dampak = "🔴 Tinggi"
-        elif str(impact_val).lower() in ["low", "1", "green", "low impact"]:
-          dampak = "🟢 Rendah"
-        else:
-          dampak = "🟡 Sedang"
-
-        formatted_data.append({
-            "Tanggal": date_str,
-            "Waktu (WIB)": time_str,
-            "Mata Uang": row.get("country", row.get("currency", "USD")),
-            "Peristiwa / Berita Ekonomi": row.get(
-                "event", "Economic Data Release"
-            ),
-            "Tingkat Dampak": dampak,
-        })
-      return pd.DataFrame(formatted_data), "Success"
+    today_date = datetime.utcnow().date()
+    from_date = today_date.strftime('%Y-%m-%d')
+    
+    if today_date.month in [11, 12]:
+        target_year = today_date.year + 1
+        target_month = (today_date.month + 2) % 12
+        if target_month == 0: target_month = 12
     else:
-      return pd.DataFrame(), f"HTTP Error: {response.status_code}"
-  except Exception as e:
-    return pd.DataFrame(), f"Error: {str(e)}"
+        target_year = today_date.year
+        target_month = today_date.month + 2
 
+    temp_date = datetime(target_year, target_month, 1).date()
+    next_month_temp = temp_date.replace(day=28) + timedelta(days=4)
+    last_day_target = next_month_temp - timedelta(days=next_month_temp.day)
+    to_date = last_day_target.strftime('%Y-%m-%d')
+
+    url = f"https://financialmodelingprep.com/api/v3/economic_calendar?from={from_date}&to={to_date}&apikey={fmp_key}"
+    
+    try:
+        response = requests.get(url, timeout=15)
+        if response.status_code == 200:
+            economic_events = response.json()
+            
+            if not economic_events or not isinstance(economic_events, list):
+                fallback_to = (today_date + timedelta(days=7)).strftime('%Y-%m-%d')
+                url_fallback = f"https://financialmodelingprep.com/api/v3/economic_calendar?from={from_date}&to={fallback_to}&apikey={fmp_key}"
+                res_fallback = requests.get(url_fallback, timeout=10)
+                
+                if res_fallback.status_code == 200:
+                    economic_events = res_fallback.json()
+                
+                if not economic_events or not isinstance(economic_events, list):
+                    return pd.DataFrame(), f"Tidak ada data event terjadwal dari {from_date} hingga {to_date}."
+
+            df_api = pd.DataFrame(economic_events)
+            formatted_data = []
+            for _, row in df_api.iterrows():
+                date_time_str = str(row.get("date", ""))
+                date_str = date_time_str[:10] if len(date_time_str) >= 10 else str(today_date)
+                time_str = date_time_str[11:16] if len(date_time_str) >= 16 else "00:00"
+                
+                impact_val = row.get("impact", "Medium")
+                if str(impact_val).lower() in ["high", "3", "red", "high impact"]:
+                    dampak = "🔴 Tinggi"
+                elif str(impact_val).lower() in ["low", "1", "green", "low impact"]:
+                    dampak = "🟢 Rendah"
+                else:
+                    dampak = "🟡 Sedang"
+
+                formatted_data.append({
+                    "Tanggal": date_str,
+                    "Waktu (WIB)": time_str,
+                    "Mata Uang": row.get("country", row.get("currency", "USD")),
+                    "Peristiwa / Berita Ekonomi": row.get("event", "Economic Data Release"),
+                    "Tingkat Dampak": dampak
+                })
+            
+            df_result = pd.DataFrame(formatted_data)
+            df_result = df_result.sort_values(by=["Tanggal", "Waktu (WIB)"]).reset_index(drop=True)
+            return df_result, "Success"
+        else:
+            return None, f"Gagal mengambil data dari API (HTTP Status: {response.status_code})"
+    except Exception as e:
+        return None, f"Error koneksi API: {str(e)}"
 
 # ==================== SESSION STATE LOGIN ====================
-if "logged_in" not in st.session_state:
-  st.session_state.logged_in = False
-if "username" not in st.session_state:
-  st.session_state.username = ""
-if "forgot_step" not in st.session_state:
-  st.session_state.forgot_step = 1
-if "show_auth_screen" not in st.session_state:
-  st.session_state.show_auth_screen = False
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+if 'username' not in st.session_state:
+    st.session_state.username = ""
+if 'forgot_step' not in st.session_state:
+    st.session_state.forgot_step = 1
+if 'show_auth_screen' not in st.session_state:
+    st.session_state.show_auth_screen = False
 
 # ==================== HALAMAN LANDING & AUTHENTICATION ====================
 if not st.session_state.logged_in:
-  if not st.session_state.show_auth_screen:
-    st.markdown(
-        """
+    if not st.session_state.show_auth_screen:
+        st.markdown("""
             <div class="hero-container animated-hero">
                 <div class="floating-badge" style="font-size: 3rem; margin-bottom: 10px;">📈</div>
                 <h1 class="hero-title">Professional Trading Journal & Risk MTRX</h1>
@@ -518,25 +475,20 @@ if not st.session_state.logged_in:
                     <span class="feature-badge">🔒 Enkripsi Data Privat (Cloud)</span>
                 </div>
             </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """, unsafe_allow_html=True)
 
-    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
-    with col_l2:
-      if st.button(
-          "🚀 Masuk / Buat Akun Sekarang", type="primary", use_container_width=True
-      ):
-        st.session_state.show_auth_screen = True
-        st.rerun()
+        col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
+        with col_l2:
+            if st.button("🚀 Masuk / Buat Akun Sekarang", type="primary", use_container_width=True):
+                st.session_state.show_auth_screen = True
+                st.rerun()
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("### ✨ Fitur Unggulan Platform")
-
-    col_f1, col_f2 = st.columns(2)
-    with col_f1:
-      st.markdown(
-          """
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("### ✨ Fitur Unggulan Platform")
+        
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            st.markdown("""
             <div class="trading-card">
                 <h4>🧮 Kalkulator Lot & Risiko Presisi</h4>
                 <p style="color: #9CA3AF; font-size: 0.95rem;">Hitung ukuran posisi dan batas risiko otomatis berdasarkan modal dan jarak Stop Loss untuk mencegah over-leverage.</p>
@@ -545,12 +497,9 @@ if not st.session_state.logged_in:
                 <h4>📊 Dashboard & Metrik Performa</h4>
                 <p style="color: #9CA3AF; font-size: 0.95rem;">Pantau rekapitulasi PnL bulanan, tingkat win rate, serta performa aset secara real-time.</p>
             </div>
-            """,
-          unsafe_allow_html=True,
-      )
-    with col_f2:
-      st.markdown(
-          """
+            """, unsafe_allow_html=True)
+        with col_f2:
+            st.markdown("""
             <div class="trading-card">
                 <h4>📸 Galeri Screenshot Chart</h4>
                 <p style="color: #9CA3AF; font-size: 0.95rem;">Simpan rekam jejak setup entry dan exit beserta gambar chart langsung ke dalam database cloud Supabase.</p>
@@ -559,20 +508,13 @@ if not st.session_state.logged_in:
                 <h4>🔒 Privasi & Keamanan Terjaga</h4>
                 <p style="color: #9CA3AF; font-size: 0.95rem;">Data transaksi dan riwayat trading setiap pengguna terisolasi dengan aman di dalam akun masing-masing.</p>
             </div>
-            """,
-          unsafe_allow_html=True,
-      )
+            """, unsafe_allow_html=True)
 
-    st.markdown("---")
-    st.markdown(
-        "<p style='text-align: center; color: #6c757d; font-size: 0.85rem;'>⚡"
-        " Powered by Lensjourneyy · Professional Trading Suite</p>",
-        unsafe_allow_html=True,
-    )
-
-  else:
-    st.markdown(
-        """
+        st.markdown("---")
+        st.markdown("<p style='text-align: center; color: #6c757d; font-size: 0.85rem;'>⚡ Powered by Lensjourneyy · Professional Trading Suite</p>", unsafe_allow_html=True)
+    
+    else:
+        st.markdown("""
             <div class="hero-container animated-hero" style="padding: 2rem 1.5rem;">
                 <h1 class="hero-title" style="font-size: 1.8rem;">📈 Akses Workspace Trading</h1>
                 <p class="hero-subtitle" style="margin-bottom: 1rem;">Kelola jurnal, pantau risiko, dan evaluasi performa trading Anda secara mulus di HP maupun PC.</p>
@@ -581,640 +523,406 @@ if not st.session_state.logged_in:
                     <span class="feature-badge">📊 Rekapitulasi Performa</span>
                 </div>
             </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """, unsafe_allow_html=True)
 
-    col_empty1, col_center, col_empty2 = st.columns([0.05, 1, 0.05])
-
-    with col_center:
-      if st.button("⬅️ Kembali ke Beranda"):
-        st.session_state.show_auth_screen = False
-        st.rerun()
-
-      st.markdown("<br>", unsafe_allow_html=True)
-
-      auth_tab1, auth_tab2, auth_tab3 = st.tabs(
-          ["🔑 Masuk Akun", "📝 Daftar Baru", "🔄 Pemulihan Sandi"]
-      )
-
-      with auth_tab1:
-        st.markdown("<br>", unsafe_allow_html=True)
-        l_user = st.text_input(
-            "Username", key="l_user", placeholder="Masukkan username..."
-        )
-        l_pass = st.text_input(
-            "Password",
-            type="password",
-            key="l_pass",
-            placeholder="Masukkan password...",
-        )
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🚀 Masuk ke Workspace"):
-          if check_user(l_user, l_pass):
-            st.session_state.logged_in = True
-            st.session_state.username = l_user
-            st.success(f"Berhasil masuk! Selamat datang, {l_user}.")
-            st.rerun()
-          else:
-            st.error("⚠️ Username atau password salah.")
-
-      with auth_tab2:
-        st.markdown("<br>", unsafe_allow_html=True)
-        r_user = st.text_input(
-            "Username Baru", key="r_user", placeholder="Pilih username unik..."
-        )
-        r_email = st.text_input(
-            "Email Kontak (Opsional)",
-            key="r_email",
-            placeholder="nama@email.com",
-        )
-        r_pass = st.text_input(
-            "Password Baru",
-            type="password",
-            key="r_pass",
-            placeholder="Buat password...",
-        )
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("✨ Buat Akun Gratis Sekarang"):
-          if r_user.strip() == "" or r_pass.strip() == "":
-            st.warning("⚠️ Username dan Password wajib diisi.")
-          else:
-            success, msg = add_user(r_user, r_email, r_pass)
-            if success:
-              st.success(
-                  f"🎉 {msg} Silakan pindah ke tab 'Masuk Akun'."
-              )
-            else:
-              st.error(f"⚠️ {msg}")
-
-      with auth_tab3:
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("#### Pemulihan Password")
-        f_user = st.text_input("Username Akun Anda", key="f_user")
-        f_email = st.text_input("Email Tujuan Pengiriman OTP", key="f_email")
-
-        if st.button("📤 Kirim Kode OTP"):
-          if f_user.strip() == "" or f_email.strip() == "":
-            st.warning("⚠️ Masukkan username dan email tujuan.")
-          else:
-            otp_code = str(random.randint(100000, 999999))
-            expiry = (datetime.now() + timedelta(minutes=10)).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
-            try:
-              supabase.table("users").update(
-                  {"reset_code": otp_code, "code_expiry": expiry}
-              ).eq("username", f_user).execute()
-            except Exception:
-              pass
-
-            sent_ok, sent_msg = send_email_otp(f_email, otp_code)
-            if sent_ok:
-              st.success("✅ Kode verifikasi terkirim ke email!")
-              st.session_state.forgot_step = 2
-            else:
-              st.warning(
-                  f"⚠️ {sent_msg} (Simulasi OTP Anda: **{otp_code}**)"
-              )
-              st.session_state.forgot_step = 2
-
-        if st.session_state.forgot_step == 2:
-          st.markdown("---")
-          entered_otp = st.text_input("Masukkan Kode OTP 6-Digit", key="ent_otp")
-          new_p1 = st.text_input("Password Baru", type="password", key="np1")
-          new_p2 = st.text_input(
-              "Konfirmasi Password Baru", type="password", key="np2"
-          )
-
-          if st.button("🔒 Konfirmasi Ganti Password"):
-            try:
-              row_res = (
-                  supabase.table("users")
-                  .select("reset_code", "code_expiry")
-                  .eq("username", f_user)
-                  .execute()
-              )
-              if row_res.data:
-                row = row_res.data[0]
-                if row.get("reset_code") == entered_otp:
-                  if new_p1 == new_p2 and len(new_p1) > 0:
-                    if is_same_as_old_password(f_user, new_p1):
-                      st.error(
-                          "⚠️ Password baru tidak boleh sama dengan password"
-                          " lama!"
-                      )
+        col_empty1, col_center, col_empty2 = st.columns([0.05, 1, 0.05])
+        
+        with col_center:
+            if st.button("⬅️ Kembali ke Beranda"):
+                st.session_state.show_auth_screen = False
+                st.rerun()
+                
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            auth_tab1, auth_tab2, auth_tab3 = st.tabs(["🔑 Masuk Akun", "📝 Daftar Baru", "🔄 Pemulihan Sandi"])
+            
+            with auth_tab1:
+                st.markdown("<br>", unsafe_allow_html=True)
+                l_user = st.text_input("Username", key="l_user", placeholder="Masukkan username...")
+                l_pass = st.text_input("Password", type="password", key="l_pass", placeholder="Masukkan password...")
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("🚀 Masuk ke Workspace"):
+                    if check_user(l_user, l_pass):
+                        st.session_state.logged_in = True
+                        st.session_state.username = l_user
+                        st.success(f"Berhasil masuk! Selamat datang, {l_user}.")
+                        st.rerun()
                     else:
-                      supabase.table("users").update({
-                          "password": new_p1,
-                          "reset_code": None,
-                          "code_expiry": None,
-                      }).eq("username", f_user).execute()
-                      st.success(
-                          "🎉 Password berhasil diubah! Silakan login."
-                      )
-                      st.session_state.forgot_step = 1
-                  else:
-                    st.error("⚠️ Konfirmasi password tidak cocok.")
-                else:
-                  st.error("⚠️ Kode OTP salah.")
-              else:
-                st.error("⚠️ User tidak ditemukan.")
-            except Exception as e:
-              st.error(f"Gagal memperbarui password: {e}")
+                        st.error("⚠️ Username atau password salah.")
+                        
+            with auth_tab2:
+                st.markdown("<br>", unsafe_allow_html=True)
+                r_user = st.text_input("Username Baru", key="r_user", placeholder="Pilih username unik...")
+                r_email = st.text_input("Email Kontak (Opsional)", key="r_email", placeholder="nama@email.com")
+                r_pass = st.text_input("Password Baru", type="password", key="r_pass", placeholder="Buat password...")
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("✨ Buat Akun Gratis Sekarang"):
+                    if r_user.strip() == "" or r_pass.strip() == "":
+                        st.warning("⚠️ Username dan Password wajib diisi.")
+                    else:
+                        success, msg = add_user(r_user, r_email, r_pass)
+                        if success:
+                            st.success(f"🎉 {msg} Silakan pindah ke tab 'Masuk Akun'.")
+                        else:
+                            st.error(f"⚠️ {msg}")
 
-    st.markdown(
-        '<div class="footer-watermark">⚡ Powered by Lensjourneyy · Responsive'
-        " Mode</div>",
-        unsafe_allow_html=True,
-    )
+            with auth_tab3:
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("#### Pemulihan Password")
+                f_user = st.text_input("Username Akun Anda", key="f_user")
+                f_email = st.text_input("Email Tujuan Pengiriman OTP", key="f_email")
+                
+                if st.button("📤 Kirim Kode OTP"):
+                    if f_user.strip() == "" or f_email.strip() == "":
+                        st.warning("⚠️ Masukkan username dan email tujuan.")
+                    else:
+                        otp_code = str(random.randint(100000, 999999))
+                        expiry = (datetime.now() + timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
+                        try:
+                            supabase.table("users").update({
+                                "reset_code": otp_code,
+                                "code_expiry": expiry
+                            }).eq("username", f_user).execute()
+                        except Exception:
+                            pass
+                        
+                        sent_ok, sent_msg = send_email_otp(f_email, otp_code)
+                        if sent_ok:
+                            st.success("✅ Kode verifikasi terkirim ke email!")
+                            st.session_state.forgot_step = 2
+                        else:
+                            st.warning(f"⚠️ {sent_msg} (Simulasi OTP Anda: **{otp_code}**)")
+                            st.session_state.forgot_step = 2
+
+                if st.session_state.forgot_step == 2:
+                    st.markdown("---")
+                    entered_otp = st.text_input("Masukkan Kode OTP 6-Digit", key="ent_otp")
+                    new_p1 = st.text_input("Password Baru", type="password", key="np1")
+                    new_p2 = st.text_input("Konfirmasi Password Baru", type="password", key="np2")
+                    
+                    if st.button("🔒 Konfirmasi Ganti Password"):
+                        try:
+                            row_res = supabase.table("users").select("reset_code", "code_expiry").eq("username", f_user).execute()
+                            if row_res.data:
+                                row = row_res.data[0]
+                                if row.get("reset_code") == entered_otp:
+                                    if new_p1 == new_p2 and len(new_p1) > 0:
+                                        if is_same_as_old_password(f_user, new_p1):
+                                            st.error("⚠️ Password baru tidak boleh sama dengan password lama!")
+                                        else:
+                                            supabase.table("users").update({
+                                                "password": new_p1,
+                                                "reset_code": None,
+                                                "code_expiry": None
+                                            }).eq("username", f_user).execute()
+                                            st.success("🎉 Password berhasil diubah! Silakan login.")
+                                            st.session_state.forgot_step = 1
+                                    else:
+                                        st.error("⚠️ Konfirmasi password tidak cocok.")
+                                else:
+                                    st.error("⚠️ Kode OTP salah.")
+                            else:
+                                st.error("⚠️ User tidak ditemukan.")
+                        except Exception as e:
+                            st.error(f"Gagal memperbarui password: {e}")
+
+        st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy · Responsive Mode</div>', unsafe_allow_html=True)
 
 # ==================== APLIKASI UTAMA SETELAH LOGIN ====================
 else:
-  col_top1, col_top2 = st.columns([0.7, 0.3])
-  with col_top1:
-    st.markdown(
-        f"👤 **Active Workspace:** <span"
-        f" style='color: #00ADB5;'>{st.session_state.username}</span>",
-        unsafe_allow_html=True,
-    )
-  with col_top2:
-    if st.button("🚪 Keluar"):
-      st.session_state.logged_in = False
-      st.session_state.username = ""
-      st.session_state.show_auth_screen = False
-      st.rerun()
-
-  st.markdown("---")
-
-  menu = st.selectbox(
-      "📌 Pilih Menu Navigasi:",
-      [
-          "📊 Dashboard & Analitik",
-          "🧮 Kalkulator Lot & Risiko",
-          "➕ Input Jurnal & Screenshot",
-          "📋 Riwayat & Kalender",
-          "🌐 Sesi Pasar & Kalender Berita",
-          "📖 Panduan & Penjelasan Sistem",
-          "💬 Masukan & Feedback",
-      ],
-      label_visibility="visible",
-  )
-
-  st.markdown("---")
-
-  df_raw = load_trades(st.session_state.username)
-
-  if menu == "📊 Dashboard & Analitik":
-    st.title("📊 Dashboard & Analitik Performa Trading")
-    st.markdown(
-        "Analisis menyeluruh rekapitulasi performa trading, win rate per"
-        " strategi, dan performa aset."
-    )
-
-    if len(df_raw) > 0:
-      df = df_raw.copy()
-      df["Tanggal"] = pd.to_datetime(df["Tanggal"])
-
-      total_trades = len(df)
-      total_net_profit = df["P/L ($)"].sum()
-      winning_trades = df[df["P/L ($)"] > 0]
-      losing_trades = df[df["P/L ($)"] < 0]
-
-      win_rate = (
-          (len(winning_trades) / total_trades) * 100 if total_trades > 0 else 0
-      )
-      gross_profit = winning_trades["P/L ($)"].sum()
-      gross_loss = abs(losing_trades["P/L ($)"].sum())
-      profit_factor = (
-          (gross_profit / gross_loss)
-          if gross_loss > 0
-          else (gross_profit if gross_profit > 0 else 0.0)
-      )
-
-      col1, col2, col3, col4 = st.columns(4)
-      with col1:
-        st.metric(label="Net P/L Bersih", value=f"${total_net_profit:,.2f}")
-      with col2:
-        st.metric(label="Total Posisi", value=total_trades)
-      with col3:
-        st.metric(label="Win Rate", value=f"{win_rate:.1f}%")
-      with col4:
-        st.metric(label="Profit Factor", value=f"{profit_factor:.2f}")
-
-      st.markdown("---")
-      st.subheader("📅 Rekapitulasi & Perhitungan PnL per Bulan")
-
-      df["Bulan"] = df["Tanggal"].dt.to_period("M").astype(str)
-      monthly_summary = (
-          df.groupby("Bulan")
-          .agg(
-              Total_Trade=("P/L ($)", "count"),
-              Total_PnL=("P/L ($)", "sum"),
-              Win_Trade=("P/L ($)", lambda x: (x > 0).sum()),
-              Loss_Trade=("P/L ($)", lambda x: (x < 0).sum()),
-          )
-          .reset_index()
-      )
-
-      monthly_summary["Win Rate (%)"] = (
-          monthly_summary["Win_Trade"]
-          / monthly_summary["Total_Trade"]
-          * 100
-      ).round(1)
-      monthly_summary.columns = [
-          "Bulan",
-          "Jumlah Trade",
-          "Net P/L Bulan ($)",
-          "Trade Profit",
-          "Trade Loss",
-          "Win Rate (%)",
-      ]
-
-      st.dataframe(monthly_summary, use_container_width=True)
-
-      st.markdown("---")
-      col_a, col_b = st.columns(2)
-      with col_a:
-        st.subheader("📊 Performa Berdasarkan Pair")
-        pair_summary = df.groupby("Pair")["P/L ($)"].sum().reset_index()
-        st.dataframe(pair_summary, use_container_width=True)
-      with col_b:
-        st.subheader("🎯 Performa Berdasarkan Strategi")
-        strat_summary = df.groupby("Strategi")["P/L ($)"].sum().reset_index()
-        st.dataframe(strat_summary, use_container_width=True)
-    else:
-      st.info(
-          "Belum ada data trading yang dicatat. Silakan mulai mencatat melalui"
-          " menu **Input Jurnal & Screenshot**."
-      )
-
-  elif menu == "🧮 Kalkulator Lot & Risiko":
-    st.title("🧮 Kalkulator Posisi & Ukuran Lot (Position Sizing)")
-    st.markdown(
-        "Alat bantu manajemen risiko profesional untuk menghitung ukuran Lot"
-        " ideal agar modal akun tetap aman."
-    )
-
-    c1, c2, c3 = st.columns(3)
-    with c1:
-      acc_balance = st.number_input(
-          "Total Modal Akun ($)", value=1000.0, step=100.0
-      )
-      risk_pct = st.number_input("Risiko Maksimal (%)", value=1.0, step=0.1)
-    with c2:
-      calc_pair = st.selectbox(
-          "Pair / Aset",
-          ["XAUUSD (Gold)", "BTCUSD (Bitcoin)", "EURUSD", "GBPUSD", "USDJPY"],
-      )
-      calc_sl_pips = st.number_input(
-          "Jarak Stop Loss (dalam Pips / Points)", value=20.0, step=1.0
-      )
-    with c3:
-      st.markdown("<br>", unsafe_allow_html=True)
-      allowed_risk_usd = acc_balance * (risk_pct / 100.0)
-      ideal_lot = allowed_risk_usd / (calc_sl_pips * 10)
-
-      st.metric(
-          label="Batas Risiko Dana ($)", value=f"${allowed_risk_usd:,.2f}"
-      )
-      st.success(
-          "📌 **Rekomendasi Lot Ideal:**"
-          f" `{max(0.01, round(ideal_lot, 2))}` Lot"
-      )
-
-  elif menu == "➕ Input Jurnal & Screenshot":
-    st.title("➕ Input Jurnal Trading & Unggah Screenshot")
-    st.markdown(
-        "Catat transaksi harian Anda lengkap dengan parameter risiko, evaluasi"
-        " psikologi, serta lampiran gambar bukti setup chart."
-    )
-    st.markdown("---")
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-      t_date = st.date_input("Tanggal Transaksi", datetime.today())
-      t_pair = st.selectbox(
-          "Pair / Aset",
-          ["XAUUSD (Gold)", "BTCUSD (Bitcoin)", "EURUSD", "GBPUSD", "USDJPY"],
-      )
-      t_type = st.selectbox("Tipe Order", ["Buy", "Sell"])
-    with col2:
-      t_lot = st.number_input("Lot / Size", min_value=0.01, value=0.01, step=0.01)
-      t_entry = st.number_input(
-          "Harga Masuk (Entry)", value=4500.00, step=0.1, format="%.2f"
-      )
-      t_sl = st.number_input(
-          "Harga Stop Loss (SL)", value=4480.00, step=0.1, format="%.2f"
-      )
-    with col3:
-      t_exit = st.number_input(
-          "Harga Keluar Aktual (Exit)", value=4530.00, step=0.1, format="%.2f"
-      )
-      t_strat = st.text_input("Strategi / Setup", "SMC / Price Action")
-      t_note = st.selectbox(
-          "Evaluasi Emosi / Kondisi",
-          [
-              "Disiplin & Sesuai Plan",
-              "FOMO / Masuk Tergesa-gesa",
-              "Cut Loss Terlambat",
-              "Revenge Trading",
-          ],
-      )
-
-    uploaded_file = st.file_uploader(
-        "📸 Unggah Screenshot Chart (Opsional - Format PNG/JPG)",
-        type=["png", "jpg", "jpeg"],
-    )
-    file_name_val = None
-    file_bytes_val = None
-    if uploaded_file is not None:
-      file_name_val = uploaded_file.name
-      file_bytes_val = uploaded_file.read()
-
-    if t_type == "Buy":
-      sl_diff = t_entry - t_sl
-      price_diff = t_exit - t_entry
-    else:
-      sl_diff = t_sl - t_entry
-      price_diff = t_entry - t_exit
-
-    risk_amount = sl_diff * t_lot * 100
-    calculated_pl = price_diff * t_lot * 100
+    col_top1, col_top2 = st.columns([0.7, 0.3])
+    with col_top1:
+        st.markdown(f"👤 **Active Workspace:** <span style='color: #00ADB5;'>{st.session_state.username}</span>", unsafe_allow_html=True)
+    with col_top2:
+        if st.button("🚪 Keluar"):
+            st.session_state.logged_in = False
+            st.session_state.username = ""
+            st.session_state.show_auth_screen = False
+            st.rerun()
 
     st.markdown("---")
-    info_col1, info_col2 = st.columns(2)
-    with info_col1:
-      st.warning(f"🛡️ **Potensi Risiko (Stop Loss):** -${abs(risk_amount):,.2f}")
-    with info_col2:
-      if calculated_pl > 0:
-        st.success(
-            f"💡 **Hasil Aktual (Exit):** +${calculated_pl:,.2f} (PROFIT ✅)"
-        )
-      else:
-        st.error(
-            f"💡 **Hasil Aktual (Exit):** -${abs(calculated_pl):,.2f} (LOSS ❌)"
-        )
-    st.markdown("---")
-
-    if st.button("💾 Simpan Jurnal & Screenshot ke Database", type="primary"):
-      clean_pair = t_pair.split(" ")[0]
-      new_row = {
-          "Tanggal": str(t_date),
-          "Pair": clean_pair,
-          "Tipe": t_type,
-          "Lot": t_lot,
-          "Entry": t_entry,
-          "SL": t_sl,
-          "Exit": t_exit,
-          "P/L ($)": round(calculated_pl, 2),
-          "Strategi": t_strat,
-          "Emosi / Catatan": t_note,
-      }
-      save_trade(
-          st.session_state.username, new_row, file_name_val, file_bytes_val
-      )
-      st.success(
-          "🎉 Data jurnal dan screenshot berhasil disimpan secara aman ke Cloud"
-          " Database!"
-      )
-
-  elif menu == "📋 Riwayat & Kalender":
-    st.title("📋 Riwayat Lengkap & Galeri Jurnal Trading")
-    st.markdown(
-        "Daftar seluruh transaksi yang pernah Anda catat, lengkap dengan opsi"
-        " unduh data dan galeri gambar chart."
+    
+    menu = st.selectbox(
+        "📌 Pilih Menu Navigasi:", 
+        [
+            "📊 Dashboard & Analitik", 
+            "🧮 Kalkulator Lot & Risiko", 
+            "➕ Input Jurnal & Screenshot", 
+            "📋 Riwayat & Kalender", 
+            "🌐 Sesi Pasar & Kalender Berita",
+            "📖 Panduan & Penjelasan Sistem",
+            "💬 Masukan & Feedback"
+        ],
+        label_visibility="visible"
     )
-
-    if len(df_raw) > 0:
-      display_df = df_raw.drop(
-          columns=["id", "screenshot_name", "screenshot_data"], errors="ignore"
-      )
-      st.dataframe(display_df, use_container_width=True)
-
-      csv = display_df.to_csv(index=False).encode("utf-8")
-      st.download_button(
-          label="📥 Download Jurnal ke Format CSV",
-          data=csv,
-          file_name=f"jurnal_trading_{st.session_state.username}.csv",
-          mime="text/csv",
-      )
-
-      st.markdown("---")
-      st.subheader("🖼️ Galeri Screenshot Chart Transaksi")
-      try:
-        img_res = (
-            supabase.table("trades")
-            .select("tanggal, pair, pl, screenshot_name, screenshot_data")
-            .eq("username", st.session_state.username)
-            .not_.is_("screenshot_data", "null")
-            .execute()
-        )
-        img_rows = img_res.data
-      except Exception:
-        img_rows = []
-
-      if img_rows:
-        import base64
-
-        for row in img_rows:
-          dt = row.get("tanggal")
-          pr = row.get("pair")
-          pl_val = row.get("pl")
-          s_name = row.get("screenshot_name")
-          s_data_b64 = row.get("screenshot_data")
-
-          if s_data_b64:
-            img_bytes = base64.b64decode(s_data_b64)
-            with st.expander(
-                f"📁 Tanggal: {dt} | Pair: {pr} | P/L: ${pl_val} | File:"
-                f" {s_name}"
-            ):
-              st.image(img_bytes, caption=s_name, use_container_width=True)
-      else:
-        st.info(
-            "Belum ada screenshot chart yang diunggah pada riwayat transaksi."
-        )
-    else:
-      st.info("Belum ada data riwayat trading di akun ini.")
-
-  elif menu == "🌐 Sesi Pasar & Kalender Berita":
-    st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi")
-    st.markdown(
-        "Memantau jam operasional sesi pasar global serta jadwal rilis berita"
-        " ekonomi penting khusus **hari ini** agar tidak menumpuk."
-    )
-    st.markdown("---")
-
-    # Cek Sesi Pasar Global
-    now_wib = datetime.utcnow() + timedelta(hours=7)
-    current_day = now_wib.weekday()
-    is_weekend = current_day >= 5
-    current_hour = now_wib.hour
-    current_minute = now_wib.minute
-    current_time_val = current_hour * 60 + current_minute
-
-
-    def check_market_status(start_h, start_m, end_h, end_m):
-      if is_weekend:
-        return "Tutup"
-      start_val = start_h * 60 + start_m
-      end_val = end_h * 60 + end_m
-      if start_val < end_val:
-        return (
-            "Buka" if start_val <= current_time_val <= end_val else "Tutup"
-        )
-      else:
-        return (
-            "Buka"
-            if current_time_val >= start_val or current_time_val <= end_val
-            else "Tutup"
-        )
-
-
-    tokyo_status = check_market_status(8, 0, 17, 0)
-    london_status = check_market_status(15, 0, 0, 0)
-    newyork_status = check_market_status(20, 0, 5, 0)
-    sydney_status = check_market_status(5, 0, 14, 0)
-
-    st.subheader("🕒 Status Sesi Pasar Global (WIB)")
-    if is_weekend:
-      st.info(
-          "📌 **Informasi:** Hari ini akhir pekan (Sabtu/Minggu). Seluruh"
-          " pasar finansial global berada dalam status **Tutup**."
-      )
-
-    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
-    with col_s1:
-      st.metric("Tokyo (Jepang)", tokyo_status, "08:00 - 17:00 WIB")
-    with col_s2:
-      st.metric("London (Eropa)", london_status, "15:00 - 00:00 WIB")
-    with col_s3:
-      st.metric("New York (US)", newyork_status, "20:00 - 05:00 WIB")
-    with col_s4:
-      st.metric("Sydney (Australia)", sydney_status, "05:00 - 14:00 WIB")
 
     st.markdown("---")
 
-    # Ambil data dari API FMP
-    df_api, status_msg = fetch_economic_calendar()
+    df_raw = load_trades(st.session_state.username)
 
-    # Jika API kosong/gagal, gunakan fallback data
-    if df_api is None or df_api.empty:
-      df_final = get_fallback_economic_calendar()
-      st.sidebar.info("ℹ️ Menggunakan data cadangan (Free tier API terbatas).")
-    else:
-      df_final = df_api
+    if menu == "📊 Dashboard & Analitik":
+        st.title("📊 Dashboard & Analitik Performa Trading")
+        st.markdown("Analisis menyeluruh rekapitulasi performa trading, win rate per strategi, dan performa aset.")
+        
+        if len(df_raw) > 0:
+            df = df_raw.copy()
+            df["Tanggal"] = pd.to_datetime(df["Tanggal"])
+            
+            total_trades = len(df)
+            total_net_profit = df["P/L ($)"].sum()
+            winning_trades = df[df["P/L ($)"] > 0]
+            losing_trades = df[df["P/L ($)"] < 0]
+            
+            win_rate = (len(winning_trades) / total_trades) * 100 if total_trades > 0 else 0
+            gross_profit = winning_trades["P/L ($)"].sum()
+            gross_loss = abs(losing_trades["P/L ($)"].sum())
+            profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0.0)
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric(label="Net P/L Bersih", value=f"${total_net_profit:,.2f}")
+            with col2:
+                st.metric(label="Total Posisi", value=total_trades)
+            with col3:
+                st.metric(label="Win Rate", value=f"{win_rate:.1f}%")
+            with col4:
+                st.metric(label="Profit Factor", value=f"{profit_factor:.2f}")
+                
+            st.markdown("---")
+            st.subheader("📅 Rekapitulasi & Perhitungan PnL per Bulan")
+            
+            df["Bulan"] = df["Tanggal"].dt.to_period("M").astype(str)
+            monthly_summary = df.groupby("Bulan").agg(
+                Total_Trade=("P/L ($)", "count"),
+                Total_PnL=("P/L ($)", "sum"),
+                Win_Trade=("P/L ($)", lambda x: (x > 0).sum()),
+                Loss_Trade=("P/L ($)", lambda x: (x < 0).sum())
+            ).reset_index()
 
-    # Filter otomatis: HANYA tampilkan tanggal hari ini (1 hari)
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    if "Tanggal" in df_final.columns:
-      df_today = (
-          df_final[df_final["Tanggal"] == today_str]
-          .reset_index(drop=True)
-      )
-    else:
-      df_today = pd.DataFrame()
+            monthly_summary["Win Rate (%)"] = (monthly_summary["Win_Trade"] / monthly_summary["Total_Trade"] * 100).round(1)
+            monthly_summary.columns = ["Bulan", "Jumlah Trade", "Net P/L Bulan ($)", "Trade Profit", "Trade Loss", "Win Rate (%)"]
 
-    # Countdown Berita High Impact Terdekat
-    if not df_today.empty:
-      now_time = datetime.now()
-      high_impact_today = df_today[df_today["Tingkat Dampak"] == "🔴 Tinggi"]
+            st.dataframe(monthly_summary, use_container_width=True)
+            
+            st.markdown("---")
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.subheader("📊 Performa Berdasarkan Pair")
+                pair_summary = df.groupby("Pair")["P/L ($)"].sum().reset_index()
+                st.dataframe(pair_summary, use_container_width=True)
+            with col_b:
+                st.subheader("🎯 Performa Berdasarkan Strategi")
+                strat_summary = df.groupby("Strategi")["P/L ($)"].sum().reset_index()
+                st.dataframe(strat_summary, use_container_width=True)
+        else:
+            st.info("Belum ada data trading yang dicatat. Silakan mulai mencatat melalui menu **Input Jurnal & Screenshot**.")
 
-      upcoming_events = []
-      for _, row in high_impact_today.iterrows():
-        event_time_str = row["Waktu (WIB)"]
-        try:
-          event_dt = datetime.strptime(
-              f"{today_str} {event_time_str}", "%Y-%m-%d %H:%M"
-          )
-          if event_dt > now_time:
-            time_diff = event_dt - now_time
-            upcoming_events.append((time_diff, row))
-        except Exception:
-          pass
+    elif menu == "🧮 Kalkulator Lot & Risiko":
+        st.title("🧮 Kalkulator Posisi & Ukuran Lot (Position Sizing)")
+        st.markdown("Alat bantu manajemen risiko profesional untuk menghitung ukuran Lot ideal agar modal akun tetap aman.")
+        
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            acc_balance = st.number_input("Total Modal Akun ($)", value=1000.0, step=100.0)
+            risk_pct = st.number_input("Risiko Maksimal (%)", value=1.0, step=0.1)
+        with c2:
+            calc_pair = st.selectbox("Pair / Aset", ["XAUUSD (Gold)", "BTCUSD (Bitcoin)", "EURUSD", "GBPUSD", "USDJPY"])
+            calc_sl_pips = st.number_input("Jarak Stop Loss (dalam Pips / Points)", value=20.0, step=1.0)
+        with c3:
+            st.markdown("<br>", unsafe_allow_html=True)
+            allowed_risk_usd = acc_balance * (risk_pct / 100.0)
+            ideal_lot = allowed_risk_usd / (calc_sl_pips * 10)
+            
+            st.metric(label="Batas Risiko Dana ($)", value=f"${allowed_risk_usd:,.2f}")
+            st.success(f"📌 **Rekomendasi Lot Ideal:** `{max(0.01, round(ideal_lot, 2))}` Lot")
 
-      if upcoming_events:
-        upcoming_events.sort(key=lambda x: x[0])
-        next_diff, next_row = upcoming_events[0]
-        hours, remainder = divmod(int(next_diff.total_seconds()), 3600)
-        minutes, _ = divmod(remainder, 60)
+    elif menu == "➕ Input Jurnal & Screenshot":
+        st.title("➕ Input Jurnal Trading & Unggah Screenshot")
+        st.markdown("Catat transaksi harian Anda lengkap dengan parameter risiko, evaluasi psikologi, serta lampiran gambar bukti setup chart.")
+        st.markdown("---")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            t_date = st.date_input("Tanggal Transaksi", datetime.today())
+            t_pair = st.selectbox("Pair / Aset", ["XAUUSD (Gold)", "BTCUSD (Bitcoin)", "EURUSD", "GBPUSD", "USDJPY"])
+            t_type = st.selectbox("Tipe Order", ["Buy", "Sell"])
+        with col2:
+            t_lot = st.number_input("Lot / Size", min_value=0.01, value=0.01, step=0.01)
+            t_entry = st.number_input("Harga Masuk (Entry)", value=4500.00, step=0.1, format="%.2f")
+            t_sl = st.number_input("Harga Stop Loss (SL)", value=4480.00, step=0.1, format="%.2f")
+        with col3:
+            t_exit = st.number_input("Harga Keluar Aktual (Exit)", value=4530.00, step=0.1, format="%.2f")
+            t_strat = st.text_input("Strategi / Setup", "SMC / Price Action")
+            t_note = st.selectbox("Evaluasi Emosi / Kondisi", [
+                "Disiplin & Sesuai Plan", 
+                "FOMO / Masuk Tergesa-gesa", 
+                "Cut Loss Terlambat", 
+                "Revenge Trading"
+            ])
+            
+        uploaded_file = st.file_uploader("📸 Unggah Screenshot Chart (Opsional - Format PNG/JPG)", type=["png", "jpg", "jpeg"])
+        file_name_val = None
+        file_bytes_val = None
+        if uploaded_file is not None:
+            file_name_val = uploaded_file.name
+            file_bytes_val = uploaded_file.read()
 
-        st.warning(
-            f"⚡ **Berita High Impact Terdekat:**"
-            f" `{next_row['Peristiwa / Berita Ekonomi']}`"
-            f" ({next_row['Mata Uang']}) pada pukul **{next_row['Waktu (WIB)']}"
-            f" WIB** — ⏳ *{hours} jam {minutes} menit lagi*"
-        )
+        if t_type == "Buy":
+            sl_diff = t_entry - t_sl
+            price_diff = t_exit - t_entry
+        else:
+            sl_diff = t_sl - t_entry
+            price_diff = t_entry - t_exit
 
-    st.subheader(f"📅 Jadwal Berita Hari Ini: {today_str}")
+        risk_amount = sl_diff * t_lot * 100
+        calculated_pl = price_diff * t_lot * 100
 
-    if not df_today.empty:
-      # Filter Sidebar / Kontrol UI
-      st.sidebar.header("⚙️ Filter Kalender Berita")
-      only_high_impact = st.sidebar.checkbox(
-          "Hanya Dampak Tinggi (🔴)", value=False
-      )
+        st.markdown("---")
+        info_col1, info_col2 = st.columns(2)
+        with info_col1:
+            st.warning(f"🛡️ **Potensi Risiko (Stop Loss):** -${abs(risk_amount):,.2f}")
+        with info_col2:
+            if calculated_pl > 0:
+                st.success(f"💡 **Hasil Aktual (Exit):** +${calculated_pl:,.2f} (PROFIT ✅)")
+            else:
+                st.error(f"💡 **Hasil Aktual (Exit):** -${abs(calculated_pl):,.2f} (LOSS ❌)")
+        st.markdown("---")
+            
+        if st.button("💾 Simpan Jurnal & Screenshot ke Database", type="primary"):
+            clean_pair = t_pair.split(" ")[0]
+            new_row = {
+                "Tanggal": str(t_date), "Pair": clean_pair, "Tipe": t_type, "Lot": t_lot,
+                "Entry": t_entry, "SL": t_sl, "Exit": t_exit, "P/L ($)": round(calculated_pl, 2),
+                "Strategi": t_strat, "Emosi / Catatan": t_note
+            }
+            save_trade(st.session_state.username, new_row, file_name_val, file_bytes_val)
+            st.success("🎉 Data jurnal dan screenshot berhasil disimpan secara aman ke Cloud Database!")
 
-      all_currencies = sorted(
-          df_today["Mata Uang"].dropna().unique().tolist()
-      )
-      selected_currencies = st.sidebar.multiselect(
-          "Pilih Mata Uang / Negara",
-          options=all_currencies,
-          default=all_currencies,
-      )
-
-      search_keyword = st.sidebar.text_input(
-          "🔍 Cari Peristiwa (Cth: CPI, NFP, Rate)"
-      )
-
-      # Terapkan Filter
-      if only_high_impact:
-        df_today = df_today[df_today["Tingkat Dampak"] == "🔴 Tinggi"]
-
-      if selected_currencies:
-        df_today = df_today[df_today["Mata Uang"].isin(selected_currencies)]
-
-      if search_keyword:
-        df_today = df_today[
-            df_today["Peristiwa / Berita Ekonomi"].str.contains(
-                search_keyword, case=False, na=False
+    elif menu == "📋 Riwayat & Kalender":
+        st.title("📋 Riwayat Lengkap & Galeri Jurnal Trading")
+        st.markdown("Daftar seluruh transaksi yang pernah Anda catat, lengkap dengan opsi unduh data dan galeri gambar chart.")
+        
+        if len(df_raw) > 0:
+            display_df = df_raw.drop(columns=["id", "screenshot_name", "screenshot_data"], errors="ignore")
+            st.dataframe(display_df, use_container_width=True)
+            
+            csv = display_df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Download Jurnal ke Format CSV",
+                data=csv,
+                file_name=f'jurnal_trading_{st.session_state.username}.csv',
+                mime='text/csv',
             )
-        ]
+            
+            st.markdown("---")
+            st.subheader("🖼️ Galeri Screenshot Chart Transaksi")
+            try:
+                img_res = supabase.table("trades").select("tanggal, pair, pl, screenshot_name, screenshot_data").eq("username", st.session_state.username).not_.is_("screenshot_data", "null").execute()
+                img_rows = img_res.data
+            except Exception:
+                img_rows = []
+            
+            if img_rows:
+                import base64
+                for row in img_rows:
+                    dt = row.get("tanggal")
+                    pr = row.get("pair")
+                    pl_val = row.get("pl")
+                    s_name = row.get("screenshot_name")
+                    s_data_b64 = row.get("screenshot_data")
+                    
+                    if s_data_b64:
+                        img_bytes = base64.b64decode(s_data_b64)
+                        with st.expander(f"📁 Tanggal: {dt} | Pair: {pr} | P/L: ${pl_val} | File: {s_name}"):
+                            st.image(img_bytes, caption=s_name, use_container_width=True)
+            else:
+                st.info("Belum ada screenshot chart yang diunggah pada riwayat transaksi.")
+        else:
+            st.info("Belum ada data riwayat trading di akun ini.")
 
-      df_today = df_today.reset_index(drop=True)
+    elif menu == "🌐 Sesi Pasar & Kalender Berita":
+        st.title("🌐 Sesi Pasar & Kalender Berita Ekonomi (FMP API)")
+        st.markdown("Pantau jam operasional sesi pasar global serta jadwal rilis berita ekonomi berdampak tinggi (*High-Impact News*) secara *real-time* dari server FMP.")
+        st.markdown("---")
 
-      if not df_today.empty:
-        st.dataframe(df_today, use_container_width=True, hide_index=True)
-      else:
-        st.info(
-            "Tidak ada berita yang sesuai dengan filter yang dipilih untuk hari"
-            " ini."
-        )
-    else:
-      st.warning(
-          "Tidak ada jadwal berita ekonomi tercatat untuk hari ini. Pasar"
-          " berjalan normal."
-      )
+        now_wib = datetime.utcnow() + timedelta(hours=7)
+        current_day = now_wib.weekday()
+        is_weekend = current_day >= 5
 
-    st.markdown("---")
-    st.info(
-        "💡 **Tips Trading:** Hindari membuka posisi baru atau pastikan *Stop"
-        " Loss* Anda terpasang dengan disiplin menjelang waktu rilis berita"
-        " berharkat merah (🔴 Tinggi)."
-    )
+        current_hour = now_wib.hour
+        current_minute = now_wib.minute
+        current_time_val = current_hour * 60 + current_minute
 
-  elif menu == "📖 Panduan & Penjelasan Sistem":
-    st.title("📖 Panduan & Penjelasan Sistem Trading Journal")
-    st.markdown(
-        "Pusat informasi dan dokumentasi komprehensif agar Anda dapat menguasai"
-        " seluruh fungsi menu aplikasi."
-    )
-    st.markdown("---")
+        def check_market_status(start_h, start_m, end_h, end_m):
+            if is_weekend:
+                return "Tutup"
+            start_val = start_h * 60 + start_m
+            end_val = end_h * 60 + end_m
+            if start_val < end_val:
+                return "Buka" if start_val <= current_time_val <= end_val else "Tutup"
+            else:
+                return "Buka" if current_time_val >= start_val or current_time_val <= end_val else "Tutup"
 
-    with st.expander("📊 1. Panduan Menu: Dashboard & Analitik"):
-      st.markdown("""
+        tokyo_status = check_market_status(8, 0, 17, 0)
+        london_status = check_market_status(15, 0, 0, 0)
+        newyork_status = check_market_status(20, 0, 5, 0)
+        sydney_status = check_market_status(5, 0, 14, 0)
+
+        st.subheader("🕒 Status Sesi Pasar Global (WIB)")
+        if is_weekend:
+            st.info("📌 **Informasi:** Hari ini akhir pekan (Sabtu/Minggu). Seluruh pasar finansial global berada dalam status **Tutup**.")
+
+        col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+        with col_s1:
+            st.metric("Tokyo (Jepang)", tokyo_status, "08:00 - 17:00 WIB")
+        with col_s2:
+            st.metric("London (Eropa)", london_status, "15:00 - 00:00 WIB")
+        with col_s3:
+            st.metric("New York (US)", newyork_status, "20:00 - 05:00 WIB")
+        with col_s4:
+            st.metric("Sydney (Australia)", sydney_status, "05:00 - 14:00 WIB")
+
+        st.markdown("---")
+        st.subheader("📅 Jadwal Berita Makroekonomi Real-Time (FMP API)")
+        st.markdown(f"Tanggal Hari Ini: **{now_wib.strftime('%A, %d %B %Y')}**")
+        st.markdown("Berikut adalah jadwal rilis data ekonomi langsung ditarik dari API Financial Modeling Prep secara otomatis:")
+
+        df_news, api_msg = fetch_realtime_economic_calendar()
+
+        if df_news is not None and not df_news.empty:
+            st.dataframe(df_news, use_container_width=True, hide_index=True)
+        else:
+            if api_msg and "API Key" in api_msg:
+                st.warning(f"⚠️ {api_msg}. Pastikan Anda telah memasukkan `[fmp] api_key` di `secrets.toml`.")
+            else:
+                st.info("ℹ️ Tidak ada rilis data berita baru yang terjadwal untuk saat ini.")
+
+            if is_weekend:
+                data_fallback = {
+                    "Keterangan": ["Pasar Finansial Libur Akhir Pekan (Weekend)", "Tidak ada rilis berita ekonomi berdampak tinggi hari ini."],
+                }
+                st.dataframe(pd.DataFrame(data_fallback), use_container_width=True, hide_index=True)
+            else:
+                today_str = now_wib.strftime('%Y-%m-%d')
+                data_fallback = {
+                    "Tanggal": [today_str],
+                    "Waktu (WIB)": ["--:--"],
+                    "Mata Uang": ["ALL"],
+                    "Peristiwa / Berita Ekonomi": ["Tidak ada jadwal berita mayor untuk saat ini."],
+                    "Tingkat Dampak": ["🟢 Rendah"]
+                }
+                st.dataframe(pd.DataFrame(data_fallback), use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+        st.info("💡 **Tips Trading:** Hindari membuka posisi baru atau pastikan *Stop Loss* Anda terpasang dengan disiplin menjelang waktu rilis berita berharkat merah (🔴 Tinggi).")
+
+    elif menu == "📖 Panduan & Penjelasan Sistem":
+        st.title("📖 Panduan & Penjelasan Sistem Trading Journal")
+        st.markdown("Pusat informasi dan dokumentasi komprehensif agar Anda dapat menguasai seluruh fungsi menu aplikasi.")
+        st.markdown("---")
+        
+        with st.expander("📊 1. Panduan Menu: Dashboard & Analitik"):
+            st.markdown("""
             * **Fungsi Utama:** Menyediakan ringkasan performa trading dan rekapitulasi data bagi akun Anda.
             * **Perhitungan Otomatis PnL per Bulan:** Sistem secara otomatis mengelompokkan data transaksi berdasarkan bulan (`YYYY-MM`) untuk menghitung total net PnL, jumlah trade, win/loss trade, serta tingkat win rate bulanan.
             * **Metrik Utama (KPI):**
@@ -1222,124 +930,130 @@ else:
                 * **Total Posisi:** Jumlah total transaksi yang telah dicatat dan dieksekusi.
                 * **Win Rate (%):** Tingkat akurasi persentase kemenangan berdasarkan jumlah posisi profit berbanding total trade.
                 * **Profit Factor:** Perbandingan antara *Gross Profit* (total profit kotor) dibagi *Gross Loss* (total loss kotor). Nilai > 1.5 mengindikasikan performa trading yang sehat.
+            * **Performa Pair & Strategi:** Tabel ringkas yang memetakan aset atau strategi mana yang memberikan kontribusi profit terbesar.
             """)
-
-    with st.expander("🧮 2. Panduan Menu: Kalkulator Lot & Risiko"):
-      st.markdown("""
+            
+        with st.expander("🧮 2. Panduan Menu: Kalkulator Lot & Risiko"):
+            st.markdown("""
             * **Fungsi Utama:** Alat bantu manajemen risiko (*Risk Management*) sebelum Anda membuka posisi di market agar terhindar dari *over-leverage*.
+            * **Cara Penggunaan:**
+                1. Masukkan **Total Modal Akun ($)** yang Anda miliki saat ini.
+                2. Tentukan **Risiko Maksimal (%)** yang siap ditoleransi per transaksi (umumnya 1% - 2%).
+                3. Pilih **Pair / Aset** yang ditransaksikan.
+                4. Masukkan **Jarak Stop Loss** dalam satuan Pips atau Points.
+            * **Hasil Kalkulasi:** Sistem otomatis menghitung batas risiko dalam dolar ($) serta merekomendasikan **Ukuran Lot Ideal** yang aman untuk dieksekusi.
             """)
-
-    with st.expander("➕ 3. Panduan Menu: Input Jurnal & Screenshot"):
-      st.markdown("""
-            * **Fungsi Utama:** Formulir pencatatan harian untuk mendokumentasikan parameter transaksi secara terstruktur serta evaluasi psikologisnya.
+            
+        with st.expander("➕ 3. Panduan Menu: Input Jurnal & Screenshot"):
+            st.markdown("""
+            * **Fungsi Utama:** Formulir pencatatan harian untuk mendokumentasikan parameter transaksi secara terstruktur—termasuk penetapan **Stop Loss (SL)** sebagai pengaman risiko utama—beserta evaluasi psikologisnya.
+            * **Langkah Input Data & Skenario Terkena SL:**
+                * **Tanggal & Pair:** Masukkan tanggal eksekusi dan pilih instrumen aset.
+                * **Tipe Order:** Pilih apakah posisi berupa **Buy** (Long) atau **Sell** (Short).
+                * **Lot, Entry, & SL:** Masukkan ukuran lot, harga masuk (*entry price*), dan level harga **Stop Loss (SL)**.
+                * **Penanganan Saat Terkena SL di Market (Real-Time):** Jika posisi Anda di platform trading (seperti MT5) terkena *Stop Loss* secara *real-time* di market, buka menu ini dan masukkan harga penutupan aktual pada kolom **Harga Keluar Aktual (Exit)** (biasanya nilainya persis atau sangat dekat dengan level *Stop Loss* yang Anda pasang). 
+                * **Pencatatan Kerugian:** Dengan memasukkan harga Exit tersebut, sistem akan otomatis menghitung dan menuliskan nominal kerugian bersih (berwarna merah) ke dalam database begitu Anda menekan tombol simpan, sehingga laporan kerugian Anda terekam dengan akurat di jurnal.
+                * **Strategi & Emosi:** Masukkan nama strategi teknikal dan evaluasi kondisi psikologis saat trade tersebut terjadi (misalnya: *Disiplin & Sesuai Plan* atau *Cut Loss Terlambat*).
+                * **Unggah Screenshot:** Lampirkan gambar bukti chart (PNG/JPG) untuk evaluasi teknikal jangka panjang.
+            * **Kalkulasi Otomatis:** Sistem secara instan menampilkan estimasi risiko Stop Loss serta hasil akhir transaksi (Profit/Loss) sebelum data disimpan permanen ke database.
             """)
-
-    with st.expander("📋 4. Panduan Menu: Riwayat & Kalender"):
-      st.markdown("""
+            
+        with st.expander("📋 4. Panduan Menu: Riwayat & Kalender"):
+            st.markdown("""
             * **Fungsi Utama:** Pusat arsip data transaksi masa lalu guna keperluan evaluasi berkala dan audit performa trading.
+            * **Fitur & Navigasi:**
+                * **Tabel Riwayat Transaksi:** Menampilkan seluruh daftar riwayat trade lengkap dalam format tabel bersih.
+                * **Ekspor CSV:** Tombol unduh untuk mengunduh seluruh data jurnal ke format CSV agar dapat dibuka atau dianalisis lebih lanjut menggunakan Microsoft Excel / Google Sheets.
+                * **Galeri Screenshot Chart:** Bagian ekspansi interaktif untuk meninjau ulang gambar setup chart yang pernah diunggah pada transaksi tertentu, lengkap dengan rincian tanggal, pair, dan hasil P/L-nya.
             """)
 
-    with st.expander("🌐 5. Panduan Menu: Sesi Pasar & Kalender Berita"):
-      st.markdown("""
-            * **Fungsi Utama:** Memantau jam buka/tutup sesi pasar global serta kalender berita ekonomi real-time lengkap dengan fitur hitung mundur (*countdown*) waktu rilis berita *high-impact*.
+        with st.expander("🌐 5. Panduan Menu: Sesi Pasar & Kalender Berita"):
+            st.markdown("""
+            * **Fungsi Utama:** Menyediakan informasi *real-time* mengenai status buka/tutup sesi bursa keuangan global utama (Tokyo, London, New York, Sydney) serta kalender rilis berita ekonomi berdampak tinggi (*High-Impact News*) berbasis FMP API agar trader dapat mengantisipasi volatilitas harga secara tepat.
             """)
 
-    with st.expander("🛠️ 6. Sistem Keamanan & Pengaturan"):
-      st.markdown("""
-            * **Autentikasi & Validasi:** Keamanan data privat dengan sistem login berbasis cloud Supabase serta pemulihan sandi via kode OTP.
+        with st.expander("🛠️ 6. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):
+            st.markdown("""
+            * **Registrasi & Login Akun:** Setiap akun diamankan dengan aman untuk menjaga privasi data trading Anda di cloud.
+            * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP via email (atau simulasi kode di layar) untuk proses reset password yang aman dan terlindungi.
+            * **Validasi Password Lama:** Sistem secara otomatis mendeteksi dan menolak apabila Anda mencoba memasukkan password baru yang sama persis dengan password lama Anda.
+            * **Mode Responsif Otomatis:** Tata letak aplikasi menyesuaikan secara pintar secara otomatis (mengubah kolom menyamping menjadi bertumpuk vertikal di layar kecil) agar optimal diakses dari HP maupun PC tanpa perlu tombol pengaturan manual.
             """)
 
-  elif menu == "💬 Masukan & Feedback":
-    st.title("💬 Masukan & Feedback Aplikasi")
-    st.markdown(
-        "Bantu kami meningkatkan kualitas aplikasi jurnal trading ini dengan"
-        " mengirimkan kritik, saran, atau laporan kendala."
-    )
-    st.markdown("---")
+    elif menu == "💬 Masukan & Feedback":
+        st.title("💬 Masukan & Feedback Aplikasi")
+        st.markdown("Bantu kami meningkatkan kualitas aplikasi jurnal trading ini dengan mengirimkan kritik, saran, atau laporan kendala.")
+        st.markdown("---")
 
-    fb_tab1, fb_tab2 = st.tabs(["📝 Kirim Feedback", "📋 Daftar Feedback Masuk"])
+        fb_tab1, fb_tab2 = st.tabs(["📝 Kirim Feedback", "📋 Daftar Feedback Masuk"])
 
-    with fb_tab1:
-      st.subheader("Kirim Masukan Anda")
-      with st.form("form_feedback_app", clear_on_submit=True):
-        pesan_fb = st.text_area(
-            "Pesan / Saran / Laporan Bug",
-            placeholder="Tuliskan masukan atau kendala yang Anda alami di sini...",
-        )
-        rating_fb = st.slider(
-            "Rating Kepuasan Aplikasi",
-            min_value=1,
-            max_value=5,
-            value=5,
-            help="1 = Sangat Buruk, 5 = Sangat Baik",
-        )
-        submitted_fb = st.form_submit_button("Kirim Feedback ke Cloud")
+        with fb_tab1:
+            st.subheader("Kirim Masukan Anda")
+            with st.form("form_feedback_app", clear_on_submit=True):
+                pesan_fb = st.text_area(
+                    "Pesan / Saran / Laporan Bug", 
+                    placeholder="Tuliskan masukan atau kendala yang Anda alami di sini..."
+                )
+                rating_fb = st.slider(
+                    "Rating Kepuasan Aplikasi", 
+                    min_value=1, 
+                    max_value=5, 
+                    value=5,
+                    help="1 = Sangat Buruk, 5 = Sangat Baik"
+                )
+                submitted_fb = st.form_submit_button("Kirim Feedback ke Cloud")
+                
+                if submitted_fb:
+                    if not pesan_fb or not pesan_fb.strip():
+                        st.warning("Pesan feedback tidak boleh kosong!")
+                    else:
+                        try:
+                            data_feedback = {
+                                "username": st.session_state.username,
+                                "pesan": pesan_fb.strip(),
+                                "rating": rating_fb
+                            }
+                            supabase.table("feedback").insert(data_feedback).execute()
+                            st.success("🎉 Terima kasih! Feedback Anda berhasil dikirim ke cloud Supabase.")
+                        except Exception as e:
+                            st.error(f"Gagal mengirim feedback: {e}")
 
-        if submitted_fb:
-          if not pesan_fb or not pesan_fb.strip():
-            st.warning("Pesan feedback tidak boleh kosong!")
-          else:
+        with fb_tab2:
+            st.subheader("Daftar Masukan Pengguna")
+            st.write("Berikut adalah rekap feedback yang telah masuk ke database cloud:")
+            
+            if st.button("🔄 Muat Ulang Data Feedback"):
+                st.rerun()
+                
             try:
-              data_feedback = {
-                  "username": st.session_state.username,
-                  "pesan": pesan_fb.strip(),
-                  "rating": rating_fb,
-              }
-              supabase.table("feedback").insert(data_feedback).execute()
-              st.success(
-                  "🎉 Terima kasih! Feedback Anda berhasil dikirim ke cloud"
-                  " Supabase."
-              )
-            except Exception as e:
-              st.error(f"Gagal mengirim feedback: {e}")
-
-    with fb_tab2:
-      st.subheader("Daftar Masukan Pengguna")
-      if st.button("🔄 Muat Ulang Data Feedback"):
-        st.rerun()
-
-      try:
-        res_fb = (
-            supabase.table("feedback")
-            .select("*")
-            .order("created_at", desc=True)
-            .execute()
-        )
-        feedback_list = res_fb.data
-
-        if not feedback_list:
-          st.info("Belum ada feedback yang dikirimkan.")
-        else:
-          for item in feedback_list:
-            with st.container():
-              u_name = item.get("username", "Anonim")
-              v_rating = item.get("rating", "-")
-              u_waktu_raw = item.get("created_it", item.get("created_at", ""))
-              u_pesan = item.get("pesan", "")
-
-              try:
-                if u_waktu_raw:
-                  dt_utc = pd.to_datetime(u_waktu_raw)
-                  dt_wib = dt_utc + pd.Timedelta(hours=7)
-                  u_waktu = (
-                      dt_wib.strftime("%Y-%m-%d %H:%M:%S") + " WIB"
-                  )
+                res_fb = supabase.table("feedback").select("*").order("created_at", desc=True).execute()
+                feedback_list = res_fb.data
+                
+                if not feedback_list:
+                    st.info("Belum ada feedback yang dikirimkan.")
                 else:
-                  u_waktu = "-"
-              except Exception:
-                u_waktu = u_waktu_raw
+                    for item in feedback_list:
+                        with st.container():
+                            u_name = item.get("username", "Anonim")
+                            v_rating = item.get("rating", "-")
+                            u_waktu_raw = item.get("created_it", item.get("created_at", ""))
+                            u_pesan = item.get("pesan", "")
+                            
+                            try:
+                                if u_waktu_raw:
+                                    dt_utc = pd.to_datetime(u_waktu_raw)
+                                    dt_wib = dt_utc + pd.Timedelta(hours=7)
+                                    u_waktu = dt_wib.strftime('%Y-%m-%d %H:%M:%S') + " WIB"
+                                else:
+                                    u_waktu = "-"
+                            except Exception:
+                                u_waktu = u_waktu_raw
 
-              st.markdown(
-                  f"**Pengguna:** `{u_name}` | **Rating:**"
-                  f" {'⭐' * int(v_rating)} ({v_rating}/5)"
-              )
-              st.markdown(f"*Waktu:* `{u_waktu}`")
-              st.info(u_pesan)
-              st.markdown("---")
-      except Exception as e:
-        st.warning(f"Gagal memuat data feedback: {e}")
+                            st.markdown(f"**Pengguna:** `{u_name}` | **Rating:** {'⭐' * int(v_rating)} ({v_rating}/5)")
+                            st.markdown(f"*Waktu:* `{u_waktu}`")
+                            st.info(u_pesan)
+                            st.markdown("---")
+            except Exception as e:
+                st.warning(f"Gagal memuat data feedback: {e}")
 
-  st.markdown(
-      '<div class="footer-watermark">⚡ Powered by Lensjourneyy</div>',
-      unsafe_allow_html=True,
-  )
+    st.markdown('<div class="footer-watermark">⚡ Powered by Lensjourneyy</div>', unsafe_allow_html=True)

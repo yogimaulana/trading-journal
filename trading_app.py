@@ -37,7 +37,6 @@ st.markdown("""
         display: none !important;
     }
     
-    /* Animasi & Efek Visual Modern */
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(15px); }
         to { opacity: 1; transform: translateY(0); }
@@ -373,7 +372,7 @@ def save_trade(username, row_data, file_name, file_bytes):
         st.error(f"Gagal menyimpan ke cloud: {e}")
 
 # ==================== FUNGSI FETCH REAL-TIME ECONOMIC CALENDAR (FMP API) ====================
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=10)
 def fetch_realtime_economic_calendar():
     try:
         fmp_key = st.secrets["fmp"]["api_key"]
@@ -394,8 +393,10 @@ def fetch_realtime_economic_calendar():
         if response.status_code == 200:
             economic_events = response.json()
             
+            print("RESPONS MENTAH FMP:", economic_events)
+            
             if not economic_events or not isinstance(economic_events, list):
-                return pd.DataFrame(), f"Tidak ada data event terjadwal dari {from_date} hingga {to_date}."
+                return pd.DataFrame(), f"Respon kosong atau bukan list. Raw: {economic_events}"
 
             df_api = pd.DataFrame(economic_events)
             formatted_data = []
@@ -877,7 +878,7 @@ else:
         df_news, api_msg = fetch_realtime_economic_calendar()
 
         if df_news is not None and not df_news.empty:
-            st.dataframe(df_news, use_keyword=False, use_container_width=True, hide_index=True)
+            st.dataframe(df_news, use_container_width=True, hide_index=True)
         else:
             if api_msg and "API Key" in api_msg:
                 st.warning(f"⚠️ {api_msg}. Pastikan Anda telah memasukkan `[fmp] api_key` di `secrets.toml`.")

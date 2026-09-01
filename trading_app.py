@@ -6,7 +6,6 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import requests
-from supabase import create_client, Client
 
 # ==========================================
 # 1. KONFIGURASI HALAMAN & TAMPILAN RESPONSIF OTOMATIS
@@ -268,7 +267,8 @@ SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["key"]
 
 @st.cache_resource
-def init_supabase() -> Client:
+def init_supabase():
+    from supabase import create_client
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 supabase = init_supabase()
@@ -472,7 +472,7 @@ if not st.session_state.logged_in:
                     <span class="feature-badge">🛡️ Kalkulator Anti-MC</span>
                     <span class="feature-badge">📊 Rekapitulasi Metrik</span>
                     <span class="feature-badge">📸 Galeri Screenshot Chart</span>
-                    <span class="feature-badge">🔒 Enkripsi Data Privat (Cloud)</span>
+                    <span class="feature-badge">📰 TradingView Market News</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -501,8 +501,8 @@ if not st.session_state.logged_in:
         with col_f2:
             st.markdown("""
             <div class="trading-card">
-                <h4>📸 Galeri Screenshot Chart</h4>
-                <p style="color: #9CA3AF; font-size: 0.95rem;">Simpan rekam jejak setup entry dan exit beserta gambar chart langsung ke dalam database cloud Supabase.</p>
+                <h4>📰 TradingView News & Berita Pasar</h4>
+                <p style="color: #9CA3AF; font-size: 0.95rem;">Dapatkan update berita pasar global langsung dari TradingView untuk memantau sentimen fundamental.</p>
             </div>
             <div class="trading-card">
                 <h4>🔒 Privasi & Keamanan Terjaga</h4>
@@ -520,7 +520,7 @@ if not st.session_state.logged_in:
                 <p class="hero-subtitle" style="margin-bottom: 1rem;">Kelola jurnal, pantau risiko, dan evaluasi performa trading Anda secara mulus di HP maupun PC.</p>
                 <div>
                     <span class="feature-badge">🛡️ Kalkulator Anti-MC</span>
-                    <span class="feature-badge">📊 Rekapitulasi Performa</span>
+                    <span class="feature-badge">📰 TradingView News</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -650,6 +650,7 @@ else:
             "➕ Input Jurnal & Screenshot", 
             "📋 Riwayat & Kalender", 
             "🌐 Sesi Pasar & Kalender Berita",
+            "📰 Update News TradingView",
             "📖 Panduan & Penjelasan Sistem",
             "💬 Masukan & Feedback"
         ],
@@ -890,7 +891,7 @@ else:
         df_news, api_msg = fetch_realtime_economic_calendar()
 
         if df_news is not None and not df_news.empty:
-            st.dataframe(df_news, use_container_width=True, hide_index=True)
+            st.dataframe(df_news, use_keyword=False, use_container_width=True, hide_index=True)
         else:
             if api_msg and "API Key" in api_msg:
                 st.warning(f"⚠️ {api_msg}. Pastikan Anda telah memasukkan `[fmp] api_key` di `secrets.toml`.")
@@ -915,6 +916,41 @@ else:
 
         st.markdown("---")
         st.info("💡 **Tips Trading:** Hindari membuka posisi baru atau pastikan *Stop Loss* Anda terpasang dengan disiplin menjelang waktu rilis berita berharkat merah (🔴 Tinggi).")
+
+    elif menu == "📰 Update News TradingView":
+        st.title("📰 TradingView Market & Top Stories News")
+        st.markdown("Pantau berita pasar global terkini (*Top Stories*) dan analisis sentimen langsung dari platform **TradingView** untuk mendukung keputusan fundamental Anda.")
+        st.markdown("---")
+
+        st.subheader("🌐 Live TradingView Market Overview & News Widget")
+        st.markdown("Widget resmi TradingView di bawah ini menyajikan berita harian (*Top Stories*) dan ringkasan aset secara instan:")
+
+        # Menggunakan HTML/iframe TradingView Widget untuk Top Stories / News Stream
+        tradingview_news_widget_html = """
+        <div class="tradingview-widget-container" style="height:600px;width:100%">
+          <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-timeline.js" async>
+          {
+          "feedMode": "all_symbols",
+          "colorTheme": "dark",
+          "isTransparent": true,
+          "displayMode": "regular",
+          "width": "100%",
+          "height": "600",
+          "locale": "en"
+        }
+          </script>
+        </div>
+        """
+        st.components.v1.html(tradingview_news_widget_html, height=620)
+
+        st.markdown("---")
+        st.subheader("💡 Ringkasan Sentimen & Panduan Berita TradingView")
+        st.markdown("""
+        * **Top Stories Briefs:** Dirancang agar Anda dapat memantau apa yang sedang terjadi di pasar kripto dan forex/saham dalam waktu cepat (*under 20 seconds*).
+        * **Korelasi Berita:** Perhatikan berita bertanda *High-Impact* terkait DXY, Federal Reserve, atau tingkat suku bunga yang dapat mempengaruhi pergerakan pair utama seperti **XAUUSD** maupun **EURUSD**.
+        * **Tips:** Gunakan informasi dari widget ini sebagai filter tambahan di samping analisa teknikal (SMC / Price Action) yang Anda gunakan di jurnal trading.
+        """)
 
     elif menu == "📖 Panduan & Penjelasan Sistem":
         st.title("📖 Panduan & Penjelasan Sistem Trading Journal")
@@ -972,7 +1008,12 @@ else:
             * **Fungsi Utama:** Menyediakan informasi *real-time* mengenai status buka/tutup sesi bursa keuangan global utama (Tokyo, London, New York, Sydney) serta kalender rilis berita ekonomi berdampak tinggi (*High-Impact News*) berbasis FMP API agar trader dapat mengantisipasi volatilitas harga secara tepat.
             """)
 
-        with st.expander("🛠️ 6. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):
+        with st.expander("📰 6. Panduan Menu: Update News TradingView"):
+            st.markdown("""
+            * **Fungsi Utama:** Menampilkan widget berita terkini (*Top Stories*) langsung dari **TradingView** untuk membantu Anda memantau sentimen pasar global secara instan tanpa harus berpindah aplikasi.
+            """)
+
+        with st.expander("🛠️ 7. Sistem Keamanan, Autentikasi, & Pengaturan Tampilan"):
             st.markdown("""
             * **Registrasi & Login Akun:** Setiap akun diamankan dengan aman untuk menjaga privasi data trading Anda di cloud.
             * **Verifikasi Email & Pemulihan Password:** Dilengkapi sistem pengiriman kode OTP via email (atau simulasi kode di layar) untuk proses reset password yang aman dan terlindungi.
